@@ -80,7 +80,7 @@ class FeatureTransformer(nn.Module):
         poi_feature_l: int,
         coord_embedding_l: int,
         poi_embedding_l: int,
-        vert_embedding_l: int,
+        leg_embedding_l: int,
         loss_fn: str,
         mlp_dim: int = 1024,
         num_layers: int = 3,
@@ -94,7 +94,7 @@ class FeatureTransformer(nn.Module):
             poi_feature_l=poi_feature_l,
             coord_embedding_l=coord_embedding_l,
             poi_embedding_l=poi_embedding_l,
-            vert_embedding_l=vert_embedding_l,
+            leg_embedding_l=leg_embedding_l,
             mlp_dim=mlp_dim,
             num_layers=num_layers,
             num_heads=num_heads,
@@ -109,10 +109,10 @@ class FeatureTransformer(nn.Module):
     def forward(self, batch):
         coarse_preds = batch["coarse_preds"]
         poi_indices = batch["target_indices"]
-        vertebra = batch["vertebra"]
+        leg = batch["leg"]
         poi_features = batch["coarse_features"]
         offsets = self.refinement_model(
-            batch["coarse_preds"], poi_indices, vertebra, poi_features
+            batch["coarse_preds"], poi_indices, leg, poi_features
         )
         batch["offsets"] = offsets
         batch["refined_preds"] = coarse_preds.detach() + offsets
@@ -185,13 +185,13 @@ class PatchTransformer(nn.Module):
     def __init__(
         self,
         n_landmarks: int,
-        n_verts: int,
+        n_legs: int,
         patch_size: int,
         poi_feature_l: int,
         patch_feature_l: int,
         coord_embedding_l: int,
         poi_embedding_l: int,
-        vert_embedding_l: int,
+        leg_embedding_l: int,
         loss_fn: str,
         project_gt: bool = False,
         warmup_epochs: int = -1,
@@ -218,12 +218,12 @@ class PatchTransformer(nn.Module):
             poi_feature_l=poi_feature_l + patch_feature_l,
             coord_embedding_l=coord_embedding_l,
             poi_embedding_l=poi_embedding_l,
-            vert_embedding_l=vert_embedding_l,
+            leg_embedding_l=leg_embedding_l,
             mlp_dim=mlp_dim,
             num_layers=num_layers,
             num_heads=num_heads,
             n_landmarks=n_landmarks,
-            n_verts=n_verts,
+            n_legs=n_legs,
             dropout_rate=dropout,
         )
 
@@ -238,7 +238,7 @@ class PatchTransformer(nn.Module):
     def forward(self, batch):
         coarse_preds = batch["coarse_preds"]
         poi_indices = batch["poi_list_idx"]
-        vertebra_indices = batch["vert_list_idx"]
+        leg_indices = batch["leg_list_idx"]
         poi_features = batch["coarse_features"]
 
         if (
@@ -261,7 +261,7 @@ class PatchTransformer(nn.Module):
         poi_features = torch.cat([poi_features, patches], dim=-1)
 
         offsets = self.refinement_module(
-            coarse_preds, poi_indices, vertebra_indices, poi_features
+            coarse_preds, poi_indices, leg_indices, poi_features
         )
         batch["offsets"] = offsets
         batch["refined_preds"] = coarse_preds + offsets

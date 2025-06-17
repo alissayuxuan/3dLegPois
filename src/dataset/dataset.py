@@ -16,7 +16,7 @@ class PoiDataset(Dataset):
         self,
         master_df,
         poi_indices,
-        include_vert_list,
+        include_leg_list,
         poi_flip_pairs=None,
         input_shape=(128, 128, 96),
         transforms=None,
@@ -42,8 +42,8 @@ class PoiDataset(Dataset):
         self.flip_prob = flip_prob
         self.poi_file_ending = poi_file_ending
         self.poi_idx_to_list_idx = {poi: idx for idx, poi in enumerate(poi_indices)}
-        self.vert_idx_to_list_idx = {
-            vert: idx for idx, vert in enumerate(include_vert_list)
+        self.leg_idx_to_list_idx = {
+            leg: idx for idx, bone in enumerate(include_leg_list)
         }
         self.iterations = iterations
 
@@ -56,7 +56,7 @@ class PoiDataset(Dataset):
         # Read the row from the master dataframe
         row = self.master_df.iloc[index]
         subject = row["subject"]
-        vertebra = row["vertebra"]
+        leg = row["leg"]
         file_dir = row["file_dir"]
 
         # If the master_dir has a column bad_poi_list, use this to create a loss mask
@@ -69,21 +69,21 @@ class PoiDataset(Dataset):
 
         # Get the paths
         ct_path = os.path.join(file_dir, "ct.nii.gz")
-        msk_path = os.path.join(file_dir, "vertseg.nii.gz")
+        msk_path = os.path.join(file_dir, "split.nii.gz")
         subreg_path = os.path.join(file_dir, "subreg.nii.gz")
         poi_path = os.path.join(file_dir, self.poi_file_ending)
 
         # Load the BIDS objects
         # ct = NII.load(ct_path, seg = False)
         subreg = NII.load(subreg_path, seg=True)
-        vertseg = NII.load(msk_path, seg=True)
+        splitseg = NII.load(msk_path, seg=True)
         poi = POI.load(poi_path)
 
         assert (
-            subreg.shape == vertseg.shape
-        ), f"Subreg and vertseg shapes do not match for subject {subject}"
+            subreg.shape == splitseg.shape
+        ), f"Subreg and splitseg shapes do not match for subject {subject}"
 
-        zoom = (1, 1, 1)
+        zoom = (0.8, 0.8, 0.8)
 
         # ct.rescale_and_reorient_(
         #   axcodes_to=('L', 'A', 'S'), voxel_spacing = zoom, verbose = False
@@ -91,7 +91,7 @@ class PoiDataset(Dataset):
         subreg.rescale_and_reorient_(
             axcodes_to=("L", "A", "S"), voxel_spacing=zoom, verbose=False
         )
-        vertseg.rescale_and_reorient_(
+        splitseg.rescale_and_reorient_(
             axcodes_to=("L", "A", "S"), voxel_spacing=zoom, verbose=False
         )
         poi.reorient_(axcodes_to=("L", "A", "S"), verbose=False).rescale_(
@@ -99,35 +99,35 @@ class PoiDataset(Dataset):
         )
 
         # Get the ground truth POIs
-        poi, missing_pois = get_gt_pois(poi, vertebra, self.poi_indices)
-        print(f"Missing POIs for subject {subject}, vertebra {vertebra}: {missing_pois}")
+        poi, missing_pois = get_gt_pois(poi, leg, self.poi_indices)
+        print(f"Missing POIs for subject {subject}, leg {leg}: {missing_pois}")
 
         poi_indices = torch.tensor(self.poi_indices)
 
         # Get arrays
         # ct = ct.get_array()
         subreg = subreg.get_array()
-        vertseg = vertseg.get_array()
+        splitseg = splitseg.get_array()
 
-        mask = vertseg == vertebra
+        mask = splitseg == leg
 
         # ct = ct * mask
         subreg = subreg * mask
 
         subreg, offset = pad_array_to_shape(subreg, self.input_shape)
-        vertseg, _ = pad_array_to_shape(vertseg, self.input_shape)
+        splitseg, _ = pad_array_to_shape(splitseg, self.input_shape)
 
         poi = poi + torch.tensor(offset)
 
         # Convert subreg and vertseg to tensors
         subreg = torch.from_numpy(subreg.astype(float))
-        vertseg = torch.from_numpy(vertseg.astype(float))
+        splitseg = torch.from_numpy(splitseg.astype(float))
 
         # Add channel dimension
         subreg = subreg.unsqueeze(0)
-        vertseg = vertseg.unsqueeze(0)
+        splitseg = splitseg.unsqueeze(0)
 
-        data_dict["input"] = vertseg#subreg
+        data_dict["input"] = subreg #splitseg
         data_dict["target"] = poi
         data_dict["target_indices"] = poi_indices
 
@@ -169,7 +169,7 @@ class PoiDataset(Dataset):
 
         data_dict["surface"] = surface
         data_dict["subject"] = str(subject)
-        data_dict["vertebra"] = vertebra
+        data_dict["leg"] = leg
         data_dict["zoom"] = torch.tensor(zoom).float()
         data_dict["offset"] = torch.tensor(offset).float()
         data_dict["ct_path"] = ct_path
@@ -179,104 +179,21 @@ class PoiDataset(Dataset):
         data_dict["poi_list_idx"] = torch.tensor(
             [self.poi_idx_to_list_idx[poi.item()] for poi in poi_indices]
         )
-        data_dict["vert_list_idx"] = torch.tensor([self.vert_idx_to_list_idx[vertebra]])
+        data_dict["leg_list_idx"] = torch.tensor([self.leg_idx_to_list_idx[leg]])
 
         return data_dict
 
 
-class ImplantsDataset(PoiDataset):
+class LegDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape=(128, 128, 96),
+        input_shape=(128, 128, 96), #TODO
         transforms=None,
         flip_prob=0.5,
         include_com=False,
         include_poi_list=None,
-        include_vert_list=None,
-        poi_file_ending="poi.json",
-        iterations=1,
-    ):
-        super().__init__(
-            master_df,
-            poi_indices=(
-                include_poi_list
-                if include_poi_list
-                else (
-                    [90, 91, 92, 93, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50]
-                    if include_com
-                    else [90, 91, 92, 93]
-                )
-            ),
-            include_vert_list=(
-                include_vert_list
-                if include_vert_list
-                else [
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    11,
-                    12,
-                    13,
-                    14,
-                    15,
-                    16,
-                    17,
-                    18,
-                    19,
-                    20,
-                    21,
-                    22,
-                    23,
-                    24,
-                    25,
-                ]
-            ),
-            poi_flip_pairs={
-                90: 91,
-                91: 90,
-                92: 93,
-                93: 92,
-                94: 95,
-                95: 94,
-                # Center of mass is not flipped
-                41: 41,
-                42: 42,
-                43: 43,
-                44: 44,
-                45: 45,
-                46: 46,
-                47: 47,
-                48: 48,
-                49: 49,
-                50: 50,
-                0: 0,
-            },
-            input_shape=input_shape,
-            transforms=transforms,
-            flip_prob=flip_prob,
-            include_com=include_com,
-            poi_file_ending=poi_file_ending,
-            iterations=iterations,
-        )
-
-
-class GruberDataset(PoiDataset):
-    def __init__(
-        self,
-        master_df,
-        input_shape=(128, 128, 96),
-        transforms=None,
-        flip_prob=0.5,
-        include_com=False,
-        include_poi_list=None,
-        include_vert_list=None,
+        include_leg_list=None,
         poi_file_ending="poi.json",
         iterations=1,
     ):
@@ -287,185 +204,128 @@ class GruberDataset(PoiDataset):
                 if include_poi_list
                 else (
                     [
-                        81,
-                        82, #
-                        83,
-                        84,
-                        85,
-                        86,
-                        87,
-                        88,
-                        89, #
-                        101,
-                        102,
-                        103,
-                        104,
-                        109,
-                        110,
-                        111,
-                        112,
-                        117,
-                        118,
-                        119,
-                        120,
-                        125,
-                        127,
-                        134,
-                        136,
-                        141,
-                        142,
-                        143,
-                        144,
-                        149,
-                        151,
-                        41,
-                        42,
-                        43,
-                        44,
-                        45,
-                        46,
-                        47,
-                        48,
-                        49,
-                        50,
+                        1, 
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                        26,
+                        27,
+                        28,
+                        29,
+                        30,
+                        31,
+                        32,
+                        98,
+                        99
                     ]
                     if include_com
                     else [
-                        81,
-                        82, #
-                        83, 
-                        84,
-                        85,
-                        86,
-                        87,
-                        88,
-                        89, #
-                        101,
-                        102,
-                        103,
-                        104,
-                        105, #
-                        106, #
-                        107, #
-                        108, #
-                        109,
-                        110,
-                        111,
-                        112,
-                        113, #
-                        114, #
-                        115, #
-                        116, #
-                        117,
-                        118,
-                        119,
-                        120,
-                        121, #
-                        122, #
-                        123, #
-                        124, #
-                        125,
-                        127,
-                        #134,
-                        #136,
-                        #141,
-                        #142,
-                        #143,
-                        #144,
-                        #149,
-                        #151,
+                        1, 
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                        26,
+                        27,
+                        28,
+                        29,
+                        30,
+                        31,
+                        32,
+                        98,
+                        99
                     ]
                 )
             ),
             include_vert_list=(
-                include_vert_list
-                if include_vert_list
+                include_leg_list
+                if include_leg_list
                 else [
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    11,
-                    12,
-                    13,
-                    14,
-                    15,
-                    16,
-                    17,
-                    18,
-                    19,
-                    20,
-                    21,
-                    22,
-                    23,
-                    24,
-                    25,
+                    1,
+                    2
                 ]
             ),
             poi_flip_pairs={
-                # These are the middle points, i.e. the ones that are not flipped
-                81: 81,
-                101: 101,
-                103: 103,
-                102: 102,
-                104: 104,
-                105: 105, #
-                106: 106, #
-                107: 107, #
-                108: 108, #
-                125: 125,
-                127: 127,
-                #134: 134,
-                #136: 136,
+                # Middle points
+                1: 1,
+                2: 2,
+                7: 7,
+                10: 10,
+                11: 11,
+                12: 12,
+                18: 18,
+                19: 19,
+                20: 20,
+                23: 23,
+                30: 30,
+                98: 98,
+                99: 99,
+
                 # Flipped left to right
-                83: 82,
-                84: 85,
-                86: 87,
-                88: 89,
-                109: 117,
-                111: 119,
-                110: 118,
-                112: 120,
-                113: 121, #
-                114: 122, #
-                115: 123, #
-                116: 124, #
-                #149: 141,
-                #151: 143,
-                #142: 144,
+                3: 4,
+                5: 6,
+                8: 9,
+                13: 32,
+                14: 21,
+                15: 22,
+                16: 17,
+                24: 25,
+                26: 27,
+                28: 29,
+                31: 32,
+
                 # Flipped right to left
-                82: 83,
-                85: 84,
-                87: 86,
-                89: 88,
-                117: 109,
-                118: 110,
-                119: 111,
-                120: 112,
-                121: 113,
-                122: 114, 
-                123: 115,
-                124: 116,
-                #141: 149,
-                #143: 151,
-                #144: 142,
-                # Center of mass, does not need to be flipped
-                #41: 41,
-                #42: 42,
-                #43: 43,
-                #44: 44,
-                #45: 45,
-                #46: 46,
-                #47: 47,
-                #48: 48,
-                #49: 49,
-                #50: 50,
-                #0: 0,
+                4: 3,
+                6: 5,
+                9: 8,
+                32: 13,
+                21: 14,
+                22: 15,
+                17: 16,
+                25: 24,
+                27: 26,
+                29: 28,
             },
             input_shape=input_shape,
             transforms=transforms,
@@ -473,134 +333,4 @@ class GruberDataset(PoiDataset):
             include_com=include_com,
             poi_file_ending=poi_file_ending,
             iterations=iterations,
-        )
-
-
-class JointDataset(PoiDataset):
-    def __init__(
-        self,
-        master_df,
-        input_shape=(128, 128, 96),
-        transforms=None,
-        flip_prob=0.5,
-        include_poi_list=None,
-        include_vert_list=None,
-        poi_file_ending="poi.json",
-    ):
-        super().__init__(
-            master_df,
-            poi_indices=(
-                include_poi_list
-                if include_poi_list
-                else [
-                    81,
-                    101,
-                    102,
-                    103,
-                    104,
-                    109,
-                    110,
-                    111,
-                    112,
-                    117,
-                    118,
-                    119,
-                    120,
-                    125,
-                    127,
-                    134,
-                    136,
-                    141,
-                    142,
-                    143,
-                    144,
-                    149,
-                    151,
-                    90,
-                    91,
-                    92,
-                    93,
-                ]
-            ),
-            include_vert_list=(
-                include_vert_list
-                if include_vert_list
-                else [
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    11,
-                    12,
-                    13,
-                    14,
-                    15,
-                    16,
-                    17,
-                    18,
-                    19,
-                    20,
-                    21,
-                    22,
-                    23,
-                    24,
-                    25,
-                ]
-            ),
-            poi_flip_pairs={
-                # These are the middle points, i.e. the ones that are not flipped
-                81: 81,
-                101: 101,
-                103: 103,
-                102: 102,
-                104: 104,
-                125: 125,
-                127: 127,
-                134: 134,
-                136: 136,
-                # Flipped left to right
-                109: 117,
-                111: 119,
-                110: 118,
-                112: 120,
-                149: 141,
-                151: 143,
-                142: 144,
-                # Flipped right to left
-                117: 109,
-                119: 111,
-                118: 110,
-                120: 112,
-                141: 149,
-                143: 151,
-                144: 142,
-                # Center of mass, does not need to be flipped
-                41: 41,
-                42: 42,
-                43: 43,
-                44: 44,
-                45: 45,
-                46: 46,
-                47: 47,
-                48: 48,
-                49: 49,
-                50: 50,
-                0: 0,
-                # Implants
-                90: 91,
-                91: 90,
-                92: 93,
-                93: 92,
-                94: 95,
-                95: 94,
-            },
-            input_shape=input_shape,
-            transforms=transforms,
-            flip_prob=flip_prob,
-            poi_file_ending=poi_file_ending,
         )

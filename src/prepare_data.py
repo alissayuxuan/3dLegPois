@@ -10,143 +10,129 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from TPTBox import NII, BIDS_Global_info #, POI
+from TPTBox import NII, BIDS_Global_info
 from TPTBox.core.poi import POI
+from TPTBox.core.poi_fun.poi_global import POI_Global
 from TPTBox import Subject_Container
-#from BIDS import NII, POI, BIDS_Global_info
-#from BIDS.bids_files import Subject_Container
-from pqdm.processes import pqdm
-
-
-def load_exclusion_dict(excel_path):
-    """Load Excel file and create lookup dictionary for exclusions"""
-    if not os.path.exists(excel_path):
-        return {}
-    
-    df = pd.read_excel(excel_path)
-
-    exclude_dict = {}
-
-    for _, row in df.iterrows():
-        subject = row['subject']
-        label = int(row['label'])  # Stelle sicher, dass das ein int ist
-
-        for col in df.columns[2:]:  # Spalten nach 'subject' und 'label'
-            val = str(row[col]).strip().lower()
-            if val == 'x':
-                try:
-                    poi_id = int(col.strip().split()[0])  # z.B. '124 \n(VertBodAntCenR)' → 124
-                except ValueError:
-                    continue  # Falls keine ID extrahierbar ist, überspringen
-
-                if subject not in exclude_dict:
-                    exclude_dict[subject] = []
-                exclude_dict[subject].append((label, poi_id))
-    
-    return exclude_dict
 
 
 
-def filter_poi(poi_object: POI, subject_id: str, exclude_dict: dict[str, list[tuple[int, int]]]) -> POI:
+exclusion_dict = {
+    "CTFU04045": {
+        2: [  # RIGHT
+            (15, 27),  # LATERAL_CONDYLE_ANTERIOR → Tibia
+            (15, 29),  # LATERAL_CONDYLE_LATERAL → Tibia
+            (13, 21),  # MEDIAL_CONDYLE_POSTERIOR → Femur
+            (15, 28),  # MEDIAL_CONDYLE_MEDIAL → Tibia
+        ]
+    },
+    "CTFU04656": {
+        1: [  # LEFT
+            (15, 26),  # MEDIAL_CONDYLE_ANTERIOR → Tibia
+        ]
+    },
+    "MM00024": {
+        2: [  # RIGHT
+            (15, 28),  # MEDIAL_CONDYLE_MEDIAL → Tibia
+            (13, 21),  # MEDIAL_CONDYLE_POSTERIOR → Femur
+        ]
+    },
+    "MM00027": {
+        2: [  # RIGHT
+            (15, 25),  # LATERAL_INTERCONDYLAR_TUBERCLE → Tibia
+            (15, 26),  # MEDIAL_CONDYLE_ANTERIOR → Tibia
+            (15, 24),  # MEDIAL_INTERCONDYLAR_TUBERCLE → Tibia
+        ]
+    },
+    "MM00071": {
+        1: [  # LEFT
+            (13, 11),  # HIP_CENTER → Femur
+        ],
+        2: [  # RIGHT
+            (13, 13),  # TIP_OF_GREATER_TROCHANTER → Femur
+        ]
+    },
+    "MM00214": {
+        1: [  # LEFT
+            (13, 13),  # TIP_OF_GREATER_TROCHANTER → Femur
+        ]
+    },
+    "MM00233": {
+        1: [  # LEFT
+            (14, 6),  # PATELLA_RIDGE_DISTAL_POLE → Patella
+        ],
+        2: [  # RIGHT
+            (15, 16),  # LATERAL_CONDYLE_DISTAL → Tibia
+            (13, 15),  # LATERAL_CONDYLE_POSTERIOR_CRANIAL → Femur
+            (15, 17),  # MEDIAL_CONDYLE_DISTAL → Tibia
+            (13, 22),  # MEDIAL_CONDYLE_POSTERIOR_CRANIAL → Femur
+        ]
+    }
+}
+
+
+
+def filter_poi(poi_object: POI, subject_id: str, side: int, exclude_dict: dict) -> POI:
     """Filter POIs by removing excluded ones for the given subject.
     
     Args:
         poi_object: POI object to filter
         subject_id: Current subject ID
-        exclude_dict: Dictionary of {subject_id: [pois_to_exclude]}
+        side: Side of the body (1 for LEFT, 2 for RIGHT)
+        exclude_dict: Dictionary of {subject_id: {side: [pois_to_exclude]}}
         
     Returns:
         Filtered POI object
     """
-    if not isinstance(poi_object, POI):
-        raise TypeError(f"Expected POI object, got {type(poi_object)}")
-    print(f"pois before exclusion: {len(poi_object.centroids)}")
-    pois_to_exclude = exclude_dict.get(subject_id, [])
-    print(f"excluding pois length: {len(pois_to_exclude)}")
-    print(f"pois to exclude: \n{pois_to_exclude}")  
-    if pois_to_exclude:
-        poi_object = poi_object.remove(*pois_to_exclude) 
-    print(f"pois after exclusion: {len(poi_object.centroids)}")
-        
+
+    if subject_id in exclusion_dict and side in exclusion_dict[subject_id]:
+        to_remove = exclusion_dict[subject_id][side]
+        print(f"→ Entferne {len(to_remove)} POIs für {subject_id}, Seite {side}")
+        poi_object = poi_object.remove(*to_remove)
     return poi_object
 
 
-def get_implants_poi(container) -> POI:
-    poi_query = container.new_query(flatten=True)
-    poi_query.filter_format("poi")
-    poi_query.filter("desc", "local")
-    poi_candidate = poi_query.candidates[0]
 
-    poi = poi_candidate.open_ctd()
-    return poi
-
-
-def get_gruber_poi(container) -> POI:
-    poi_query = container.new_query(flatten=True)
-    poi_query.filter_format("poi")
-    #poi_query.filter("source", "gruber")
-    #print(f"Query candidates: {poi_query.candidates}")
-
-    if not poi_query.candidates:
-        print("ERROR: No POI candidates found!")
+def get_right_poi(container) -> POI:
+    right_poi_query = container.new_query(flatten=True)
+    right_poi_query.filter_format("poi")
+    right_poi_query.filter_filetype("json")  # only nifti files
+    right_poi_query.filter_self(lambda f: "RIGHT" in str(f.file["json"]).upper())
+    
+    if not right_poi_query.candidates:
+        print("ERROR: No Right POI candidates found!")
         return None
     
-    poi_candidate = poi_query.candidates[0]
-    print(f"Loading POI from: {poi_candidate}")
+    right_poi_candidate = right_poi_query.candidates[0]
+    print(f"Loading Right POI from: {right_poi_candidate}")
 
     try:
-        poi = POI.load(poi_candidate.file["json"])
-        #print("Loaded POI with keys:", list(poi.keys()))
+        poi = POI_Global.load(right_poi_candidate.file["json"])
         return poi
     except Exception as e:
         print(f"Error loading POI: {str(e)}")
         return None
-    #poi = poi_candidate.open_ctd()
-    #("gruber_poi: ", poi)
-    #return poi
+    
+def get_left_poi(container) -> POI:
+    left_poi_query = container.new_query(flatten=True)
+    left_poi_query.filter_format("poi")
+    left_poi_query.filter_filetype("json") 
+    left_poi_query.filter_self(lambda f: "LEFT" in str(f.file["json"]).upper())
 
-"""
-def get_gruber_registration_poi(container):
-    poi_query = container.new_query(flatten=True)
-    poi_query.filter_format("poi")
-    poi_query.filter("source", "registered")
-    poi_query.filter_filetype(".json")
+    if not left_poi_query.candidates:
+        print("ERROR: No POI candidates found!")
+        return None
+    
+    left_poi_candidate = left_poi_query.candidates[0]
+    print(f"Loading POI from: {left_poi_candidate}")
 
-    registration_ctds = [POI.load(poi) for poi in poi_query.candidates]
-
-    # Check whether zoom, shape and direction coincide
-    for i in range(1, len(registration_ctds)):
-        if not registration_ctds[0].zoom == registration_ctds[i].zoom:
-            print("Zoom does not match")
-        if not registration_ctds[0].shape == registration_ctds[i].shape:
-            print("Shape does not match")
-        if not registration_ctds[0].orientation == registration_ctds[i].orientation:
-            print("Direction does not match")
-
-    # Get the keys that are present in all POIs
-    keys = set(registration_ctds[0].keys())
-    for ctd in registration_ctds:
-        keys = keys.intersection(set(ctd.keys()))
-    keys = list(keys)
-
-    ctd = {}
-    for key in keys:
-        #
-        ctd[key] = tuple(
-            np.array([reg_ctd[key] for reg_ctd in registration_ctds]).mean(axis=0)
-        )
-
-    # Sort the new ctd by keys
-    ctd = dict(sorted(ctd.items()))
-    new_poi = POI(
-        centroids=ctd,
-        orientation=registration_ctds[0].orientation,
-        zoom=registration_ctds[0].zoom,
-        shape=registration_ctds[0].shape,
-    )
-
-    return new_poi
-"""
+    try:
+        poi = POI_Global.load(left_poi_candidate.file["json"])
+        # TODO: turn glocal POI into local POI
+        return poi
+    except Exception as e:
+        print(f"Error loading POI: {str(e)}")
+        return None
 
 def get_ct(container) -> NII:
     ct_query = container.new_query(flatten=True)
@@ -159,14 +145,30 @@ def get_ct(container) -> NII:
         return ct
     except Exception as e:
         print(f"Error opening CT: {str(e)}")
-        return None
+        return None  
 
+def get_splitseg(container) -> NII:
+    splitseg_query = container.new_query(flatten=True)
+    splitseg_query.filter_format("split")
+    splitseg_query.filter_filetype("nii.gz")  # only nifti files
+    #splitseg_query.filter("seg", "subreg")
+    splitseg_candidate = splitseg_query.candidates[0]
+
+    try:
+        splitseg = splitseg_candidate.open_nii()
+        return splitseg
+    except Exception as e:
+        print(f"Error opening splitseg: {str(e)}")
+        return None
 
 def get_subreg(container) -> NII:
     subreg_query = container.new_query(flatten=True)
     subreg_query.filter_format("msk")
     subreg_query.filter_filetype("nii.gz")  # only nifti files
-    subreg_query.filter("seg", "subreg")
+    if not subreg_query.candidates:
+        print("ERROR: No subreg candidates found!")
+        return None
+
     subreg_candidate = subreg_query.candidates[0]
 
     try:
@@ -175,36 +177,22 @@ def get_subreg(container) -> NII:
     except Exception as e:
         print(f"Error opening subreg: {str(e)}")
         return None
-    
-
-def get_vertseg(container) -> NII:
-    print("get_vertseg")
-    vertseg_query = container.new_query(flatten=True)
-    vertseg_query.filter_format("msk")
-    vertseg_query.filter_filetype("nii.gz")  # only nifti files
-    vertseg_query.filter("seg", "vert")
-    vertseg_candidate = vertseg_query.candidates[0]
-
-    try:
-        vertseg = vertseg_candidate.open_nii()
-        return vertseg
-    except Exception as e:
-        print(f"Error opening vertseg: {str(e)}")
-        return None
 
 
 def get_files(
     container,
-    get_poi: Callable,
+    get_right_poi_fn: Callable,
+    get_left_poi_fn: Callable,
     get_ct_fn: Callable,
+    get_splitseg_fn: Callable,
     get_subreg_fn: Callable,
-    get_vertseg_fn: Callable,
-) -> tuple[POI, NII, NII, NII]:
+) -> tuple[POI, POI, NII, NII, NII]:
     return (
-        get_poi(container),
+        get_right_poi_fn(container),
+        get_left_poi_fn(container),
         get_ct_fn(container),
+        get_splitseg_fn(container),
         get_subreg_fn(container),
-        get_vertseg_fn(container),
     )
 
 
@@ -257,23 +245,129 @@ def process_container(
     container,
     save_path: PathLike,
     rescale_zoom: tuple | None,
-    get_files_fn: Callable[[Subject_Container], tuple[POI, NII, NII, NII]],
-    exclusion_dict: dict | None = None, #Alissa
-    include_neighbouring_vertebrae: bool = False,  # Alissa
+    get_files_fn: Callable[[Subject_Container], tuple[POI, POI, NII, NII, NII]],
+    exclude: bool = False, #Alissa
+    flip_to_right: bool = False,
 ):
-    poi, ct, subreg, vertseg = get_files_fn(container)
+    right_poi, left_poi, ct, splitseg, subreg = get_files_fn(container)
 
-    if exclusion_dict is not None:
-        poi = filter_poi(poi, f"sub-{subject}", exclusion_dict)
-
+    #if exclusion_dict is not None:
+    #    poi = filter_poi(poi, f"sub-{subject}", exclusion_dict)
     
     #reorient data to same orientation
     #ct.reorient_(("L", "A", "S"))
+    splitseg.reorient_(("L", "A", "S"))
     subreg.reorient_(("L", "A", "S"))
-    vertseg.reorient_(("L", "A", "S"))
-    poi.reorient_(axcodes_to=ct.orientation, _shape=ct.shape) 
+    right_poi = right_poi.resample_from_to(subreg)
+    left_poi = left_poi.resample_from_to(subreg)
 
 
+    # cut segmentations to left and right
+    split_arr = splitseg.get_array()
+
+    summary = []
+
+    for leg in [1, 2]:
+        if exclude and leg == 1:
+            left_poi = filter_poi(left_poi, subject, leg, exclusion_dict)
+        elif exclude and leg == 2:
+            right_poi = filter_poi(right_poi, subject, leg, exclusion_dict)
+
+        x_min, x_max, y_min, y_max, z_min, z_max = get_bounding_box(
+                        split_arr, leg
+                    )            
+        
+        split_path = os.path.join(save_path, subject, str(leg), "split.nii.gz")
+        subreg_path = os.path.join(save_path, subject, str(leg), "subreg.nii.gz")
+        poi_path = os.path.join(save_path, subject, str(leg), "poi.json")
+        poi_path_global = os.path.join(save_path, subject, str(leg), "poi_global.json")
+        #right_poi_path = os.path.join(save_path, subject, str(leg), "right_poi.json")
+        #left_poi_path = os.path.join(save_path, subject, str(leg), "left_poi.json")
+        #right_poi_global_path = os.path.join(save_path, subject, str(leg), "right_poi_global.json")
+        #left_poi_global_path = os.path.join(save_path, subject, str(leg), "left_poi_global.json")
+
+
+        #create directories if they do not exist
+        if not os.path.exists(os.path.join(save_path, subject, str(leg))):
+            os.makedirs(os.path.join(save_path, subject, str(leg)))
+
+        try:            
+            #ct_cropped = ct.apply_crop(
+            #    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+            #)
+            split_cropped = splitseg.apply_crop(
+                ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+            )
+            subreg_cropped = subreg.apply_crop(
+                ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+            )
+
+        except Exception as e:
+            print(f"Error processing {subject}: {str(e)}")
+            print(f"Crop dimensions: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}, z_min={z_min}, z_max={z_max}")
+            print(f"ex_slice: {(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))}")
+            #print(f"ct shape: {ct.shape},\n subreg shape: {subreg.shape},\n vertseg shape: {vertseg.shape}, poi shape: {poi.shape}")
+            raise
+        
+        if rescale_zoom:
+
+            #ct_cropped.rescale_(rescale_zoom)
+            split_cropped.rescale_(rescale_zoom)
+            subreg_cropped.rescale_(rescale_zoom)
+            right_poi.rescale_(rescale_zoom)
+            left_poi.rescale_(rescale_zoom)
+        
+
+        if flip_to_right and leg == 1:
+            print("Flipping to right leg orientation")
+            print("split_cropped affine (before reorient): \n", split_cropped.affine)
+            print("subreg_cropped affine (before reorient): \n", subreg_cropped.affine)
+            split_cropped.reorient_(("R", "A", "S"))
+            subreg_cropped.reorient_(("R", "A", "S"))
+            left_poi.reorient_(("R", "A", "S"))
+            print("split_cropped affine (after reorient): \n", split_cropped.affine)
+            print("subreg_cropped affine (after reorient): \n", subreg_cropped.affine)
+
+
+
+        #ct_cropped.save(ct_path, verbose=False)
+        split_cropped.save(split_path, verbose=False)
+        subreg_cropped.save(subreg_path, verbose=False)
+        if leg == 1:
+            left_poi.save(poi_path, verbose=False)
+            left_poi.to_global().save_mrk(poi_path_global)
+        else:
+            right_poi.save(poi_path, verbose=False)
+            right_poi.to_global().save_mrk(poi_path_global)
+
+
+        # Save the slice indices as json to reconstruct the original POI file (there probably is a more BIDS-like approach to this)
+        slice_indices = {
+            "x_min": int(x_min),
+            "x_max": int(x_max),
+            "y_min": int(y_min),
+            "y_max": int(y_max),
+            "z_min": int(z_min),
+            "z_max": int(z_max),
+        }
+        with open(
+            os.path.join(
+                save_path, subject, str(leg), "cutout_slice_indices.json"
+            ),
+            "w",
+            encoding="utf-8",
+        ) as f:
+            json.dump(slice_indices, f)
+
+        summary.append(
+            {
+                "subject": subject,
+                "leg": leg,
+                "file_dir": os.path.join(save_path, subject, str(leg)),
+            }
+        )
+    
+    """
     vertebrae = {key[0] for key in poi.keys()} 
     vertseg_arr = vertseg.get_array() 
     summary = []
@@ -405,7 +499,7 @@ def process_container(
 
         else:
             print(f"Vertebra {vert} has no segmentation for subject {subject}")
-
+    """
     return summary
 
 
@@ -413,41 +507,40 @@ def prepare_data(
     bids_surgery_info: BIDS_Global_info,
     save_path: str,
     get_files_fn: callable,
-    exclusion_path: str |None = None, # Alissa
     rescale_zoom: tuple | None = None,
     n_workers: int = 8,
-    include_neighbouring_vertebrae: bool = False,  # Alissa
+    exclude: bool = False, # Alissa
+
+    flip_to_right: bool = False,  # Alissa
 ):
     master = []
-    exclusion_dict = (
-        load_exclusion_dict(exclusion_path) 
-        if exclusion_path is not None 
-        else None
-    )
-
-    print("included neighbouring vertebrae: ", include_neighbouring_vertebrae)
 
     partial_process_container = partial(
         process_container,
         save_path=save_path,
         rescale_zoom=rescale_zoom,
         get_files_fn=get_files_fn,
-        exclusion_dict=exclusion_dict,  # Pass None if not provided
-        include_neighbouring_vertebrae=include_neighbouring_vertebrae,  # Alissa
+        exclude=exclude,  # Pass None if not provided
+        flip_to_right=flip_to_right,  # Alissa
     )
 
-    for subject, container in bids_surgery_info.enumerate_subjects():
-        print(f"Subject: {subject}, Container: {container}")
-
+    """
     master = pqdm(
         bids_surgery_info.enumerate_subjects(),
         partial_process_container,
         n_jobs=n_workers,
         argument_type="args",
         exception_behaviour="immediate",
-        #exception_behaviour="continue"
     )
     master = [item for sublist in master for item in sublist]
+    master_df = pd.DataFrame(master)
+    master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
+    """
+    for subject, container in bids_surgery_info.enumerate_subjects():
+        result = partial_process_container(subject, container)  # Process sequentially
+        master.extend(result)  # Flatten results (same as your original list comprehension)
+
+    # Convert to DataFrame and save
     master_df = pd.DataFrame(master)
     master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
 
@@ -455,15 +548,6 @@ def prepare_data(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    # Get dataset type (must be gruber or implants)
-    
-    parser.add_argument(
-        "--dataset_type",
-        type=str,
-        help="The dataset to prepare",
-        choices=["Gruber", "Implants"],
-        required=True,
-    )
     parser.add_argument(
         "--data_path", type=str, help="The path to the BIDS dataset", required=True
     )
@@ -491,59 +575,50 @@ if __name__ == "__main__":
         default=8,
     )
     
-    
-    parser.add_argument(
+    """parser.add_argument(
         '--exclude_path',
         type=str,
         help='Path to Excel file marking POIs to exclude',
         default=None
-    )
+    )"""
 
-    
     parser.add_argument(
-        '--include_neighbouring_vertebrae',
+        '--exclude',
         action="store_true",
-        help='Whether to include neighbouring vertebrae in the bounding box extraction',
+        help='Whether to exclude certain POIs based on a predefined dictionary',
         #default=False
     )
-    
+
+
+    parser.add_argument(
+        '--flip_to_right',
+        action="store_true",
+        help='Whether the legs should be flipped, so only right legs are used for training',
+        #default=False
+    )
 
     args = parser.parse_args()
     print(args.derivatives_name)
 
-    
     bids_gloabl_info = BIDS_Global_info(
         datasets=[args.data_path], parents=["rawdata", args.derivatives_name]
     )
 
-    print("\n\nbids_gloabl_info: ", bids_gloabl_info)
-
-
-    if args.dataset_type == "Gruber":
-        get_data_files = partial(
-            get_files,
-            get_poi=get_gruber_poi,
-            get_ct_fn=get_ct,
-            get_subreg_fn=get_subreg,
-            get_vertseg_fn=get_vertseg,
-        )
-
-    elif args.dataset_type == "Implants":
-        get_data_files = partial(
-            get_files,
-            get_poi=get_implants_poi,
-            get_ct_fn=get_ct,
-            get_subreg_fn=get_subreg,
-            get_vertseg_fn=get_vertseg,
-        )
-
+    get_data_files = partial(
+        get_files,
+        get_right_poi_fn=get_right_poi,
+        get_left_poi_fn=get_left_poi,
+        get_ct_fn=get_ct,
+        get_splitseg_fn=get_splitseg,
+        get_subreg_fn=get_subreg,
+    )
     
     prepare_data(
         bids_surgery_info=bids_gloabl_info,
         save_path=args.save_path,
-        exclusion_path=args.exclude_path,
         get_files_fn=get_data_files,
-        rescale_zoom=None if args.no_rescale else (1, 1, 1),
+        rescale_zoom=None if args.no_rescale else (0.8, 0.8, 0.8),
         n_workers=args.n_workers,
-        include_neighbouring_vertebrae=args.include_neighbouring_vertebrae,
+        exclude=args.exclude, 
+        flip_to_right=args.flip_to_right,
     )
