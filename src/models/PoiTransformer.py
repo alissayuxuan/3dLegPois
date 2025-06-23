@@ -25,6 +25,9 @@ class PoiTransformer(nn.Module):
             poi_feature_l + coord_embedding_l + poi_embedding_l + leg_embedding_l
         )
 
+        print(f"[DEBUG] hidden_size = {hidden_size}")
+
+
         self.dropout = nn.Dropout(dropout_rate)
 
         self.transformer_blocks = nn.ModuleList(

@@ -18,7 +18,7 @@ class PoiDataset(Dataset):
         poi_indices,
         include_leg_list,
         poi_flip_pairs=None,
-        input_shape=(128, 128, 96),
+        input_shape=(190, 215, 1165),#(128, 128, 96),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -43,7 +43,7 @@ class PoiDataset(Dataset):
         self.poi_file_ending = poi_file_ending
         self.poi_idx_to_list_idx = {poi: idx for idx, poi in enumerate(poi_indices)}
         self.leg_idx_to_list_idx = {
-            leg: idx for idx, bone in enumerate(include_leg_list)
+            leg: idx for idx, leg in enumerate(include_leg_list)
         }
         self.iterations = iterations
 
@@ -188,7 +188,7 @@ class LegDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape=(128, 128, 96), #TODO
+        input_shape=(190, 215, 1165),#(128, 128, 96), #TODO
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -278,7 +278,7 @@ class LegDataset(PoiDataset):
                     ]
                 )
             ),
-            include_vert_list=(
+            include_leg_list=(
                 include_leg_list
                 if include_leg_list
                 else [

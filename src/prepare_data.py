@@ -9,13 +9,20 @@ from typing import Callable
 
 import numpy as np
 import pandas as pd
+from collections import defaultdict
+
 
 from TPTBox import NII, BIDS_Global_info
 from TPTBox.core.poi import POI
 from TPTBox.core.poi_fun.poi_global import POI_Global
 from TPTBox import Subject_Container
 
-
+SIDES = {"left": 1, "right": 2}
+REGIONS = { 
+    "femur": [13],
+    "patella": [14],
+    "lowerleg": [15, 16],  # tibia, fibula
+}
 
 exclusion_dict = {
     "CTFU04045": {
@@ -91,6 +98,13 @@ def filter_poi(poi_object: POI, subject_id: str, side: int, exclude_dict: dict) 
         poi_object = poi_object.remove(*to_remove)
     return poi_object
 
+def rename_poi(poi_object: POI, subject_id: str, side: int) -> POI:
+    """Rename POIs based on subject ID and side.
+
+    Args:
+        poi_object: POI object to rename
+        subject_id: Current subject ID
+        side: Side of the body (1 for LEFT, 2 for RIGHT)"""
 
 
 def get_right_poi(container) -> POI:
@@ -120,7 +134,7 @@ def get_left_poi(container) -> POI:
     left_poi_query.filter_self(lambda f: "LEFT" in str(f.file["json"]).upper())
 
     if not left_poi_query.candidates:
-        print("ERROR: No POI candidates found!")
+        print("ERROR: No Left POI candidates found!")
         return None
     
     left_poi_candidate = left_poi_query.candidates[0]
@@ -152,6 +166,9 @@ def get_splitseg(container) -> NII:
     splitseg_query.filter_format("split")
     splitseg_query.filter_filetype("nii.gz")  # only nifti files
     #splitseg_query.filter("seg", "subreg")
+    if not splitseg_query.candidates:
+        print("ERROR: No splitseg candidates found!")
+        return None
     splitseg_candidate = splitseg_query.candidates[0]
 
     try:
@@ -196,8 +213,8 @@ def get_files(
     )
 
 
-def get_bounding_box(mask, vert, margin=5):
-    """Get the bounding box of a given vertebra in a mask.
+def get_bounding_box(mask, leg, margin=1):
+    """Get the bounding box of a given leg in a mask.
 
     Args:
         mask (numpy.ndarray): The mask to search for the vertex.
@@ -208,11 +225,11 @@ def get_bounding_box(mask, vert, margin=5):
         tuple: A tuple containing the minimum and maximum values for the x, y, and z axes of the
         bounding box.
     """
-    indices = np.where(mask == vert)
+    indices = np.where(mask == leg)
 
     #debug
     if len(indices[0]) == 0:
-        raise ValueError(f"Vertebra {vert} not found in the mask.")
+        raise ValueError(f"Vertebra {leg} not found in the mask.")
     
     x_min = np.min(indices[0]) - margin
     x_max = np.max(indices[0]) + margin
@@ -232,13 +249,69 @@ def get_bounding_box(mask, vert, margin=5):
     #debug
     if x_min >= x_max or y_min >= y_max or z_min >= z_max:
         raise ValueError(
-            f"Invalid bounding box for vertebra {vert}: "
+            f"Invalid bounding box for vertebra {leg}: "
             f"x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}, "
             f"z_min={z_min}, z_max={z_max}"
         )
 
     return x_min, x_max, y_min, y_max, z_min, z_max
 
+
+def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2):
+    """
+    Computes a bounding box that covers the region defined by:
+    - a specific leg side (from split_mask)
+    - and one or more anatomical regions (from subregion_mask)
+
+    Args:
+        split_mask (np.ndarray): Mask that contains side information (e.g., 1=left, 2=right)
+        subreg_mask (np.ndarray): Mask that contains anatomical region info
+        leg_side (int): The side of the leg to extract (1=left, 2=right)
+        region_ids (List[int]): List of subregion IDs to include (e.g., [13] for femur)
+        margin (int): Margin to add around the bounding box
+
+    Returns:
+        Tuple[slice, slice, slice]: z, y, x slices to crop the image/volume
+    """
+
+    assert split_mask.shape == subreg_mask.shape, "Masks must have the same shape."
+
+    # Create combined mask
+    side_mask = split_mask == leg_side
+    region_mask = np.isin(subreg_mask, region_ids)
+    combined_mask = np.logical_and(side_mask, region_mask)
+
+    # No voxels? Return None or raise
+    if not np.any(combined_mask):
+        raise ValueError("No voxels found for the given leg side and region.")
+
+    # Get coordinates of the non-zero voxels
+    #coords = np.argwhere(combined_mask)
+    #zmin, ymin, xmin = coords.min(axis=0) - margin
+    #zmax, ymax, xmax = coords.max(axis=0) + margin  # +1 because slicing is exclusive
+    indices = np.where(combined_mask)
+
+    x_min = np.min(indices[0]) - margin
+    x_max = np.max(indices[0]) + margin
+    y_min = np.min(indices[1]) - margin
+    y_max = np.max(indices[1]) + margin
+    z_min = np.min(indices[2]) - margin
+    z_max = np.max(indices[2]) + margin
+
+    # Make sure the bounding box is within the mask
+    x_min = max(0, x_min)
+    x_max = min(subreg_mask.shape[0], x_max)
+    y_min = max(0, y_min)
+    y_max = min(subreg_mask.shape[1], y_max)
+    z_min = max(0, z_min)
+    z_max = min(subreg_mask.shape[2], z_max)
+    
+    return  x_min, x_max, y_min, y_max, z_min, z_max
+    #return (
+    #    slice(zmin, zmax),
+    #    slice(ymin, ymax),
+    #    slice(xmin, xmax)
+    #)
 
 def process_container(
     subject,
@@ -247,15 +320,11 @@ def process_container(
     rescale_zoom: tuple | None,
     get_files_fn: Callable[[Subject_Container], tuple[POI, POI, NII, NII, NII]],
     exclude: bool = False, #Alissa
-    flip_to_right: bool = False,
 ):
+    print("Subject:", subject)
     right_poi, left_poi, ct, splitseg, subreg = get_files_fn(container)
 
-    #if exclusion_dict is not None:
-    #    poi = filter_poi(poi, f"sub-{subject}", exclusion_dict)
     
-    #reorient data to same orientation
-    #ct.reorient_(("L", "A", "S"))
     splitseg.reorient_(("L", "A", "S"))
     subreg.reorient_(("L", "A", "S"))
     right_poi = right_poi.resample_from_to(subreg)
@@ -264,9 +333,105 @@ def process_container(
 
     # cut segmentations to left and right
     split_arr = splitseg.get_array()
+    subreg_arr = subreg.get_array()
 
     summary = []
 
+    for leg_side, side_value in SIDES.items():
+        if exclude and leg_side == "left":
+            left_poi = filter_poi(left_poi, subject, side_value, exclusion_dict)
+        elif exclude and leg_side == "right":
+            right_poi = filter_poi(right_poi, subject, side_value, exclusion_dict)
+        
+        for region_name, region_ids in REGIONS.items():
+
+            # get bounding box for the current leg and region
+            x_min, x_max, y_min, y_max, z_min, z_max = get_bounding_box(
+                        split_arr, subreg_arr, side_value, region_ids
+                    )
+
+            split_path =os.path.join(save_path, region_name, subject, side_value, "split.nii.gz")
+            subreg_path = os.path.join(save_path, region_name, subject, side_value, "subreg.nii.gz")
+            poi_path = os.path.join(save_path, region_name, subject, side_value, "poi.json")
+            poi_path_global = os.path.join(save_path, region_name, subject, side_value, "poi_global.json")
+
+            #create directories if they do not exist
+            if not os.path.exists(os.path.join(save_path, subject, str(leg))):
+                os.makedirs(os.path.join(save_path, subject, str(leg)))
+
+            try:   
+                split_cropped = splitseg.apply_crop(
+                    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+                )
+                subreg_cropped = subreg.apply_crop(
+                    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+                )
+                if leg_side == "left":
+                    left_poi_cropped = left_poi.apply_crop(
+                        ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+                    )
+                elif leg_side == "right":
+                    right_poi_cropped = right_poi.apply_crop(
+                        ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+                    )
+
+            except Exception as e:
+                print(f"Error processing {subject}: {str(e)}")
+                print(f"Crop dimensions: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}, z_min={z_min}, z_max={z_max}")
+                print(f"ex_slice: {(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))}")
+                #print(f"ct shape: {ct.shape},\n subreg shape: {subreg.shape},\n vertseg shape: {vertseg.shape}, poi shape: {poi.shape}")
+                raise
+            
+            if rescale_zoom:
+
+                #ct_cropped.rescale_(rescale_zoom)
+                split_cropped.rescale_(rescale_zoom)
+                subreg_cropped.rescale_(rescale_zoom)
+                left_poi_cropped.rescale_(rescale_zoom)
+                left_poi_cropped.rescale_(rescale_zoom)
+    
+
+            #ct_cropped.save(ct_path, verbose=False)
+            split_cropped.save(split_path, verbose=False)
+            subreg_cropped.save(subreg_path, verbose=False)
+            if leg_side == "left":
+                left_poi.save(poi_path, verbose=False)
+                left_poi.to_global().save_mrk(poi_path_global)
+            elif leg_side == "right":
+                right_poi.save(poi_path, verbose=False)
+                right_poi.to_global().save_mrk(poi_path_global)
+
+
+            # Save the slice indices as json to reconstruct the original POI file (there probably is a more BIDS-like approach to this)
+            slice_indices = {
+                "x_min": int(x_min),
+                "x_max": int(x_max),
+                "y_min": int(y_min),
+                "y_max": int(y_max),
+                "z_min": int(z_min),
+                "z_max": int(z_max),
+            }
+            with open(
+                os.path.join(
+                    save_path, region_name, subject, side_value, "cutout_slice_indices.json"
+                ),
+                "w",
+                encoding="utf-8",
+            ) as f:
+                json.dump(slice_indices, f)
+
+            summary.append(
+                {
+                    "region": region_name,
+                    "subject": subject,
+                    "leg": side_value,
+                    "file_dir": os.path.join(save_path, region_name, subject, side_value),
+                }
+            )
+
+
+    #################################################################################
+    """
     for leg in [1, 2]:
         if exclude and leg == 1:
             left_poi = filter_poi(left_poi, subject, leg, exclusion_dict)
@@ -316,19 +481,7 @@ def process_container(
             subreg_cropped.rescale_(rescale_zoom)
             right_poi.rescale_(rescale_zoom)
             left_poi.rescale_(rescale_zoom)
-        
-
-        if flip_to_right and leg == 1:
-            print("Flipping to right leg orientation")
-            print("split_cropped affine (before reorient): \n", split_cropped.affine)
-            print("subreg_cropped affine (before reorient): \n", subreg_cropped.affine)
-            split_cropped.reorient_(("R", "A", "S"))
-            subreg_cropped.reorient_(("R", "A", "S"))
-            left_poi.reorient_(("R", "A", "S"))
-            print("split_cropped affine (after reorient): \n", split_cropped.affine)
-            print("subreg_cropped affine (after reorient): \n", subreg_cropped.affine)
-
-
+  
 
         #ct_cropped.save(ct_path, verbose=False)
         split_cropped.save(split_path, verbose=False)
@@ -366,140 +519,8 @@ def process_container(
                 "file_dir": os.path.join(save_path, subject, str(leg)),
             }
         )
+    """
     
-    """
-    vertebrae = {key[0] for key in poi.keys()} 
-    vertseg_arr = vertseg.get_array() 
-    summary = []
-
-    print("process container: included neighbouring vertebrae: ", include_neighbouring_vertebrae)
-
-    #for vert in vertebrae: #loops through each vertebra ID (extracted from POI keys)
-    vertebrae = sorted(vertebrae)
-    for index in range(len(vertebrae)): #loops through each vertebra ID (extracted from POI keys)
-        vert = vertebrae[index]  
-        if vert in vertseg_arr: #vertebra found in segmentation mask
-            
-            #TODO: muss ich schauen ob die nachbarn in vertseg_arr sind? wenn nicht was dann?
-            if include_neighbouring_vertebrae:
-                vert_neighbours = [vert]
-                if index > 0:
-                    vert_neighbours.insert(0, vertebrae[index - 1])
-                if index < len(vertebrae) - 1:
-                    vert_neighbours.append(vertebrae[index + 1])
-                
-                print(f"Vertebra {vert} neighbours: {vert_neighbours}")
-
-                # Initialize bounding box limits
-                x_min, x_max = np.inf, -np.inf
-                y_min, y_max = np.inf, -np.inf
-                z_min, z_max = np.inf, -np.inf    
-
-                for v in vert_neighbours:
-                    try:
-                        bounds = get_bounding_box(vertseg_arr, v)
-                    except ValueError as e:
-                        print(f"Error getting bounding box for vertebra {v}: {str(e)}")
-                        continue
-                    
-                    x_min = min(x_min, bounds[0])
-                    x_max = max(x_max, bounds[1])
-                    y_min = min(y_min, bounds[2])
-                    y_max = max(y_max, bounds[3])
-                    z_min = min(z_min, bounds[4])
-                    z_max = max(z_max, bounds[5])
-               
-
-            else:
-                try:
-                    x_min, x_max, y_min, y_max, z_min, z_max = get_bounding_box(
-                        vertseg_arr, vert
-                    )
-                except ValueError as e:
-                    print(f"Error getting bounding box for vertebra {vert}: {str(e)}")
-                    continue
-
-            #defines output paths for cropped files
-            #ct_path = os.path.join(save_path, subject, str(vert), "ct.nii.gz")
-            subreg_path = os.path.join(save_path, subject, str(vert), "subreg.nii.gz")
-            vertseg_path = os.path.join(save_path, subject, str(vert), "vertseg.nii.gz")
-            poi_path = os.path.join(save_path, subject, str(vert), "poi.json")
-
-            #create directories if they do not exist
-            if not os.path.exists(os.path.join(save_path, subject, str(vert))):
-                os.makedirs(os.path.join(save_path, subject, str(vert)))
-
-            try:            
-                #ct_cropped = ct.apply_crop(
-                #    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-                #)
-                subreg_cropped = subreg.apply_crop(
-                    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-                )
-                vertseg_cropped = vertseg.apply_crop(
-                    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-                )
-                poi_cropped = poi.apply_crop(
-                    o_shift=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-                )
-
-            except Exception as e:
-                print(f"Error processing {subject}: {str(e)}")
-                print(f"Crop dimensions: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}, z_min={z_min}, z_max={z_max}")
-                print(f"ex_slice: {(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))}")
-                #print(f"ct shape: {ct.shape},\n subreg shape: {subreg.shape},\n vertseg shape: {vertseg.shape}, poi shape: {poi.shape}")
-                raise
-            
-            if rescale_zoom:
-
-                #ct_cropped.rescale_(rescale_zoom)
-                subreg_cropped.rescale_(rescale_zoom)
-                vertseg_cropped.rescale_(rescale_zoom)
-                poi_cropped.rescale_(rescale_zoom)
-
-            #ALISSA: CHECK
-            if vert in [11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 24]:
-                if (vert, 101) in poi.centroids:
-                    print(f"subject: {subject}, Centroid ({vert}, 101) vorhanden!")
-                else:
-                    print(f"subject: {subject}, Centroid ({vert}, 101) NICHT vorhanden!")
-
-
-            #ct_cropped.save(ct_path, verbose=False)
-            subreg_cropped.save(subreg_path, verbose=False)
-            vertseg_cropped.save(vertseg_path, verbose=False)
-            #print(f"poi_cropped: \n{poi_cropped.centroids}")
-            poi_cropped.save(poi_path, verbose=False)
-
-            # Save the slice indices as json to reconstruct the original POI file (there probably is a more BIDS-like approach to this)
-            slice_indices = {
-                "x_min": int(x_min),
-                "x_max": int(x_max),
-                "y_min": int(y_min),
-                "y_max": int(y_max),
-                "z_min": int(z_min),
-                "z_max": int(z_max),
-            }
-            with open(
-                os.path.join(
-                    save_path, subject, str(vert), "cutout_slice_indices.json"
-                ),
-                "w",
-                encoding="utf-8",
-            ) as f:
-                json.dump(slice_indices, f)
-
-            summary.append(
-                {
-                    "subject": subject,
-                    "vertebra": vert,
-                    "file_dir": os.path.join(save_path, subject, str(vert)),
-                }
-            )
-
-        else:
-            print(f"Vertebra {vert} has no segmentation for subject {subject}")
-    """
     return summary
 
 
@@ -510,10 +531,10 @@ def prepare_data(
     rescale_zoom: tuple | None = None,
     n_workers: int = 8,
     exclude: bool = False, # Alissa
-
-    flip_to_right: bool = False,  # Alissa
 ):
-    master = []
+    #master = []
+    # This will collect results per region
+    region_results = defaultdict(list)
 
     partial_process_container = partial(
         process_container,
@@ -521,7 +542,6 @@ def prepare_data(
         rescale_zoom=rescale_zoom,
         get_files_fn=get_files_fn,
         exclude=exclude,  # Pass None if not provided
-        flip_to_right=flip_to_right,  # Alissa
     )
 
     """
@@ -538,11 +558,20 @@ def prepare_data(
     """
     for subject, container in bids_surgery_info.enumerate_subjects():
         result = partial_process_container(subject, container)  # Process sequentially
-        master.extend(result)  # Flatten results (same as your original list comprehension)
+        #master.extend(result)  # Flatten results (same as your original list comprehension)
+        for entry in result:
+            region = entry["region"]
+            region_results[region].append(entry)
 
+    # Save results for each region
+    for region_name, entries in region_results.items():
+        df = pd.DataFrame(entries)
+        region_folder = os.path.join(save_path, region_name)
+        os.makedirs(region_folder, exist_ok=True)
+        df.to_csv(os.path.join(region_folder, "master_df.csv"), index=False)
     # Convert to DataFrame and save
-    master_df = pd.DataFrame(master)
-    master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
+    #master_df = pd.DataFrame(master)
+    #master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
 
 
 if __name__ == "__main__":
@@ -574,27 +603,11 @@ if __name__ == "__main__":
         help="The number of workers to use for parallel processing",
         default=8,
     )
-    
-    """parser.add_argument(
-        '--exclude_path',
-        type=str,
-        help='Path to Excel file marking POIs to exclude',
-        default=None
-    )"""
 
     parser.add_argument(
         '--exclude',
         action="store_true",
         help='Whether to exclude certain POIs based on a predefined dictionary',
-        #default=False
-    )
-
-
-    parser.add_argument(
-        '--flip_to_right',
-        action="store_true",
-        help='Whether the legs should be flipped, so only right legs are used for training',
-        #default=False
     )
 
     args = parser.parse_args()
@@ -620,5 +633,4 @@ if __name__ == "__main__":
         rescale_zoom=None if args.no_rescale else (0.8, 0.8, 0.8),
         n_workers=args.n_workers,
         exclude=args.exclude, 
-        flip_to_right=args.flip_to_right,
     )

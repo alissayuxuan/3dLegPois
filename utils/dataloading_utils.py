@@ -20,21 +20,24 @@ def compute_zoom(original_shape, original_zoom, target_shape):
     return (zoom[0], zoom[1], zoom[2])
 
 
-def get_gt_pois(poi, vertebra, poi_indices):
+def get_gt_pois(poi, leg, poi_indices):
     """Converts the POI coordinates to a tensor.
 
     Args:
         poi (POI): The POI coordinates.
-        vertebra (int): The vertebra number.
+        leg (int): The leg number.
 
     Returns:
         torch.Tensor: The POI coordinates as a tensor.
     """
+    print("[DEBUG] POI keys:", poi.keys())
+    print("[DEBUG] Suche nach:", [(leg, p_idx) for p_idx in poi_indices])
+
     coords = [
         (
             np.array((-1, -1, -1))
-            if not (vertebra, p_idx) in poi.keys()
-            else np.array(poi.centroids[vertebra, p_idx])
+            if not (leg, p_idx) in poi.keys()
+            else np.array(poi.centroids[leg, p_idx])
         )
         for p_idx in poi_indices
     ]
