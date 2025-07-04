@@ -77,7 +77,22 @@ exclusion_dict = {
     }
 }
 
+exclusion_dict_renamed = {
+    "CTFU04045": [(2, 27), (2, 29), (2, 21), (2, 28)],
+    "CTFU04656": [(1, 26)],
+    "MM00024": [(2, 28), (2, 21)],
+    "MM00027": [(2, 25), (2, 26), (2, 24)],
+    "MM00071": [(1, 11), (2, 13)],
+    "MM00214": [(1, 13)],
+    "MM00233": [(1, 6), (2, 16),(2, 15),(2, 17),(2, 22)]
+}
 
+map_label_double  = {
+    (15, 14) : (15, 114),
+    (15, 19) : (15, 119),
+    (15, 20) : (15, 120),
+    (15, 21) : (15, 121)
+}
 
 def filter_poi(poi_object: POI, subject_id: str, side: int, exclude_dict: dict) -> POI:
     """Filter POIs by removing excluded ones for the given subject.
@@ -98,13 +113,60 @@ def filter_poi(poi_object: POI, subject_id: str, side: int, exclude_dict: dict) 
         poi_object = poi_object.remove(*to_remove)
     return poi_object
 
-def rename_poi(poi_object: POI, subject_id: str, side: int) -> POI:
+def get_bad_poi_list(exclude: bool, subject_id: str, leg: int,  exclude_dict: dict[str, list[tuple[int, int]]]) ->list[int]:
+    """
+    Args:
+        exclude: Whether to exclude or not,
+        subject_id: Subject ID,
+        leg: Leg ID, 
+        exclude_dict: Dict mapping subject_id -> list of (leg_id, poi_id)
+
+    Returns:
+        A list of global POI IDs
+    """
+    if exclude:
+        bad_pois = exclude_dict.get(subject_id, [])
+        filtered_pois = [ poi_id for leg_id, poi_id in bad_pois if leg_id == leg ]
+        return filtered_pois
+    else:
+        return []
+
+def rename_poi(poi_object: POI, leg_id: int) -> POI:
     """Rename POIs based on subject ID and side.
 
     Args:
         poi_object: POI object to rename
-        subject_id: Current subject ID
         side: Side of the body (1 for LEFT, 2 for RIGHT)"""
+    
+    label_map_full = {key: (leg_id, key[1]) for key in poi_object.keys()}
+    poi_object.map_labels(label_map_full=label_map_full, inplace=True)
+    return poi_object
+
+def remove_other_region_pois(poi_object: POI, allowed_region_ids: list[int]) -> POI:
+    """
+    Removes all POIs from the POI object that do NOT belong to the given region(s).
+    
+    Args:
+        poi_object: POI object
+        allowed_region_ids: List of region IDs to keep (e.g., [13] for femur)
+        
+    Returns:
+        Filtered POI object
+    """
+    if not isinstance(poi_object, POI):
+        raise TypeError(f"Expected POI object, got {type(poi_object)}")
+
+    # Find all POIs that are NOT in allowed regions
+    pois_to_remove = [
+        (region_id, poi_id)
+        for (region_id, poi_id) in poi_object.centroids.keys()
+        if region_id not in allowed_region_ids
+    ]
+
+    if pois_to_remove:
+        poi_object = poi_object.remove(*pois_to_remove)
+
+    return poi_object
 
 
 def get_right_poi(container) -> POI:
@@ -212,52 +274,7 @@ def get_files(
         get_subreg_fn(container),
     )
 
-
-def get_bounding_box(mask, leg, margin=1):
-    """Get the bounding box of a given leg in a mask.
-
-    Args:
-        mask (numpy.ndarray): The mask to search for the vertex.
-        vert (int): The vertebra to search for in the mask.
-        margin (int, optional): The margin to add to the bounding box. Defaults to 2.
-
-    Returns:
-        tuple: A tuple containing the minimum and maximum values for the x, y, and z axes of the
-        bounding box.
-    """
-    indices = np.where(mask == leg)
-
-    #debug
-    if len(indices[0]) == 0:
-        raise ValueError(f"Vertebra {leg} not found in the mask.")
-    
-    x_min = np.min(indices[0]) - margin
-    x_max = np.max(indices[0]) + margin
-    y_min = np.min(indices[1]) - margin
-    y_max = np.max(indices[1]) + margin
-    z_min = np.min(indices[2]) - margin
-    z_max = np.max(indices[2]) + margin
-
-    # Make sure the bounding box is within the mask
-    x_min = max(0, x_min)
-    x_max = min(mask.shape[0], x_max)
-    y_min = max(0, y_min)
-    y_max = min(mask.shape[1], y_max)
-    z_min = max(0, z_min)
-    z_max = min(mask.shape[2], z_max)
-
-    #debug
-    if x_min >= x_max or y_min >= y_max or z_min >= z_max:
-        raise ValueError(
-            f"Invalid bounding box for vertebra {leg}: "
-            f"x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}, "
-            f"z_min={z_min}, z_max={z_max}"
-        )
-
-    return x_min, x_max, y_min, y_max, z_min, z_max
-
-
-def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2):
+def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2, straight_cut=False):
     """
     Computes a bounding box that covers the region defined by:
     - a specific leg side (from split_mask)
@@ -269,6 +286,8 @@ def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2):
         leg_side (int): The side of the leg to extract (1=left, 2=right)
         region_ids (List[int]): List of subregion IDs to include (e.g., [13] for femur)
         margin (int): Margin to add around the bounding box
+        straight_cut (bool): If set, horizontally cut across the entire leg for contextual input, 
+        otherwise cut into regions
 
     Returns:
         Tuple[slice, slice, slice]: z, y, x slices to crop the image/volume
@@ -291,12 +310,24 @@ def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2):
     #zmax, ymax, xmax = coords.max(axis=0) + margin  # +1 because slicing is exclusive
     indices = np.where(combined_mask)
 
-    x_min = np.min(indices[0]) - margin
-    x_max = np.max(indices[0]) + margin
-    y_min = np.min(indices[1]) - margin
-    y_max = np.max(indices[1]) + margin
-    z_min = np.min(indices[2]) - margin
-    z_max = np.max(indices[2]) + margin
+    if straight_cut:
+        # Use full x and y extent of the leg side
+        full_leg_indices = np.where(side_mask)
+        x_min = np.min(full_leg_indices[0]) - margin
+        x_max = np.max(full_leg_indices[0]) + margin
+        y_min = np.min(full_leg_indices[1]) - margin
+        y_max = np.max(full_leg_indices[1]) + margin
+
+        z_min = np.min(indices[2]) - margin
+        z_max = np.max(indices[2]) + margin
+    else:
+        # Standard behavior: crop tightly around region
+        x_min = np.min(indices[0]) - margin
+        x_max = np.max(indices[0]) + margin
+        y_min = np.min(indices[1]) - margin
+        y_max = np.max(indices[1]) + margin
+        z_min = np.min(indices[2]) - margin
+        z_max = np.max(indices[2]) + margin
 
     # Make sure the bounding box is within the mask
     x_min = max(0, x_min)
@@ -319,7 +350,8 @@ def process_container(
     save_path: PathLike,
     rescale_zoom: tuple | None,
     get_files_fn: Callable[[Subject_Container], tuple[POI, POI, NII, NII, NII]],
-    exclude: bool = False, #Alissa
+    exclude: bool = False, 
+    straight_cut: bool = False 
 ):
     print("Subject:", subject)
     right_poi, left_poi, ct, splitseg, subreg = get_files_fn(container)
@@ -330,6 +362,9 @@ def process_container(
     right_poi = right_poi.resample_from_to(subreg)
     left_poi = left_poi.resample_from_to(subreg)
 
+    # rename double POI ids
+    right_poi = right_poi.map_labels(label_map_full=map_label_double, inplace=True)
+    left_poi = left_poi.map_labels(label_map_full=map_label_double, inplace=True)
 
     # cut segmentations to left and right
     split_arr = splitseg.get_array()
@@ -337,27 +372,23 @@ def process_container(
 
     summary = []
 
-    for leg_side, side_value in SIDES.items():
-        if exclude and leg_side == "left":
-            left_poi = filter_poi(left_poi, subject, side_value, exclusion_dict)
-        elif exclude and leg_side == "right":
-            right_poi = filter_poi(right_poi, subject, side_value, exclusion_dict)
+    for leg_side, leg_id in SIDES.items():        
         
         for region_name, region_ids in REGIONS.items():
 
             # get bounding box for the current leg and region
             x_min, x_max, y_min, y_max, z_min, z_max = get_bounding_box(
-                        split_arr, subreg_arr, side_value, region_ids
+                        split_arr, subreg_arr, leg_id, region_ids, straight_cut
                     )
 
-            split_path =os.path.join(save_path, region_name, subject, side_value, "split.nii.gz")
-            subreg_path = os.path.join(save_path, region_name, subject, side_value, "subreg.nii.gz")
-            poi_path = os.path.join(save_path, region_name, subject, side_value, "poi.json")
-            poi_path_global = os.path.join(save_path, region_name, subject, side_value, "poi_global.json")
+            split_path =os.path.join(save_path, region_name, subject, str(leg_id), "split.nii.gz")
+            subreg_path = os.path.join(save_path, region_name, subject, str(leg_id), "subreg.nii.gz")
+            poi_path = os.path.join(save_path, region_name, subject, str(leg_id), "poi.json")
+            poi_path_global = os.path.join(save_path, region_name, subject, str(leg_id), "poi_global.json")
 
             #create directories if they do not exist
-            if not os.path.exists(os.path.join(save_path, subject, str(leg))):
-                os.makedirs(os.path.join(save_path, subject, str(leg)))
+            if not os.path.exists(os.path.join(save_path, region_name, subject, str(leg_id))):
+                os.makedirs(os.path.join(save_path, region_name, subject, str(leg_id)))
 
             try:   
                 split_cropped = splitseg.apply_crop(
@@ -368,38 +399,57 @@ def process_container(
                 )
                 if leg_side == "left":
                     left_poi_cropped = left_poi.apply_crop(
-                        ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+                        o_shift=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
                     )
+                    left_poi_cropped.filter_points_inside_shape(inplace=True)
+                    left_poi_cropped = remove_other_region_pois(left_poi_cropped, region_ids)
+
                 elif leg_side == "right":
                     right_poi_cropped = right_poi.apply_crop(
-                        ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+                        o_shift=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
                     )
+                    right_poi_cropped.filter_points_inside_shape(inplace=True)
+                    right_poi_cropped.remove_other_region_pois(right_poi_cropped, region_ids)
+                else:
+                    print("Invalid side: ", leg_side)
 
             except Exception as e:
                 print(f"Error processing {subject}: {str(e)}")
                 print(f"Crop dimensions: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}, z_min={z_min}, z_max={z_max}")
                 print(f"ex_slice: {(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))}")
-                #print(f"ct shape: {ct.shape},\n subreg shape: {subreg.shape},\n vertseg shape: {vertseg.shape}, poi shape: {poi.shape}")
                 raise
             
             if rescale_zoom:
-
-                #ct_cropped.rescale_(rescale_zoom)
                 split_cropped.rescale_(rescale_zoom)
                 subreg_cropped.rescale_(rescale_zoom)
-                left_poi_cropped.rescale_(rescale_zoom)
-                left_poi_cropped.rescale_(rescale_zoom)
+                if leg_side == "left":
+                    left_poi_cropped.rescale_(rescale_zoom)
+                elif leg_side == "right":
+                    right_poi_cropped.rescale_(rescale_zoom)
+                else:
+                    print("Invalid side: ", leg_side)
     
 
-            #ct_cropped.save(ct_path, verbose=False)
             split_cropped.save(split_path, verbose=False)
             subreg_cropped.save(subreg_path, verbose=False)
+
             if leg_side == "left":
-                left_poi.save(poi_path, verbose=False)
-                left_poi.to_global().save_mrk(poi_path_global)
+                #if exclude:
+                #    left_poi_cropped = filter_poi(left_poi_cropped, subject, leg_id, exclusion_dict)
+                left_poi_cropped = rename_poi(left_poi_cropped, leg_id)
+
+                left_poi_cropped.save(poi_path, verbose=False)
+                left_poi_cropped.to_global().save_mrk(poi_path_global)
+
             elif leg_side == "right":
-                right_poi.save(poi_path, verbose=False)
-                right_poi.to_global().save_mrk(poi_path_global)
+                #if exclude:
+                #    right_poi_cropped = filter_poi(right_poi_cropped, subject, leg_id, exclusion_dict)
+                right_poi_cropped = rename_poi(right_poi_cropped, leg_id)
+
+                right_poi_cropped.save(poi_path, verbose=False)
+                right_poi_cropped.to_global().save_mrk(poi_path_global)
+            else:
+                print("Invalid side: ", leg_side)
 
 
             # Save the slice indices as json to reconstruct the original POI file (there probably is a more BIDS-like approach to this)
@@ -413,113 +463,22 @@ def process_container(
             }
             with open(
                 os.path.join(
-                    save_path, region_name, subject, side_value, "cutout_slice_indices.json"
+                    save_path, region_name, subject, str(leg_id), "cutout_slice_indices.json"
                 ),
                 "w",
                 encoding="utf-8",
             ) as f:
                 json.dump(slice_indices, f)
-
+            
             summary.append(
                 {
                     "region": region_name,
                     "subject": subject,
-                    "leg": side_value,
-                    "file_dir": os.path.join(save_path, region_name, subject, side_value),
+                    "leg": leg_id,
+                    "file_dir": os.path.join(save_path, region_name, subject, str(leg_id)),
+                    "bad_poi_list": get_bad_poi_list(exclude, subject, leg_id, exclusion_dict_renamed)
                 }
             )
-
-
-    #################################################################################
-    """
-    for leg in [1, 2]:
-        if exclude and leg == 1:
-            left_poi = filter_poi(left_poi, subject, leg, exclusion_dict)
-        elif exclude and leg == 2:
-            right_poi = filter_poi(right_poi, subject, leg, exclusion_dict)
-
-        x_min, x_max, y_min, y_max, z_min, z_max = get_bounding_box(
-                        split_arr, leg
-                    )            
-        
-        split_path = os.path.join(save_path, subject, str(leg), "split.nii.gz")
-        subreg_path = os.path.join(save_path, subject, str(leg), "subreg.nii.gz")
-        poi_path = os.path.join(save_path, subject, str(leg), "poi.json")
-        poi_path_global = os.path.join(save_path, subject, str(leg), "poi_global.json")
-        #right_poi_path = os.path.join(save_path, subject, str(leg), "right_poi.json")
-        #left_poi_path = os.path.join(save_path, subject, str(leg), "left_poi.json")
-        #right_poi_global_path = os.path.join(save_path, subject, str(leg), "right_poi_global.json")
-        #left_poi_global_path = os.path.join(save_path, subject, str(leg), "left_poi_global.json")
-
-
-        #create directories if they do not exist
-        if not os.path.exists(os.path.join(save_path, subject, str(leg))):
-            os.makedirs(os.path.join(save_path, subject, str(leg)))
-
-        try:            
-            #ct_cropped = ct.apply_crop(
-            #    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-            #)
-            split_cropped = splitseg.apply_crop(
-                ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-            )
-            subreg_cropped = subreg.apply_crop(
-                ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-            )
-
-        except Exception as e:
-            print(f"Error processing {subject}: {str(e)}")
-            print(f"Crop dimensions: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}, z_min={z_min}, z_max={z_max}")
-            print(f"ex_slice: {(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))}")
-            #print(f"ct shape: {ct.shape},\n subreg shape: {subreg.shape},\n vertseg shape: {vertseg.shape}, poi shape: {poi.shape}")
-            raise
-        
-        if rescale_zoom:
-
-            #ct_cropped.rescale_(rescale_zoom)
-            split_cropped.rescale_(rescale_zoom)
-            subreg_cropped.rescale_(rescale_zoom)
-            right_poi.rescale_(rescale_zoom)
-            left_poi.rescale_(rescale_zoom)
-  
-
-        #ct_cropped.save(ct_path, verbose=False)
-        split_cropped.save(split_path, verbose=False)
-        subreg_cropped.save(subreg_path, verbose=False)
-        if leg == 1:
-            left_poi.save(poi_path, verbose=False)
-            left_poi.to_global().save_mrk(poi_path_global)
-        else:
-            right_poi.save(poi_path, verbose=False)
-            right_poi.to_global().save_mrk(poi_path_global)
-
-
-        # Save the slice indices as json to reconstruct the original POI file (there probably is a more BIDS-like approach to this)
-        slice_indices = {
-            "x_min": int(x_min),
-            "x_max": int(x_max),
-            "y_min": int(y_min),
-            "y_max": int(y_max),
-            "z_min": int(z_min),
-            "z_max": int(z_max),
-        }
-        with open(
-            os.path.join(
-                save_path, subject, str(leg), "cutout_slice_indices.json"
-            ),
-            "w",
-            encoding="utf-8",
-        ) as f:
-            json.dump(slice_indices, f)
-
-        summary.append(
-            {
-                "subject": subject,
-                "leg": leg,
-                "file_dir": os.path.join(save_path, subject, str(leg)),
-            }
-        )
-    """
     
     return summary
 
@@ -531,6 +490,7 @@ def prepare_data(
     rescale_zoom: tuple | None = None,
     n_workers: int = 8,
     exclude: bool = False, # Alissa
+    straight_cut: bool = False
 ):
     #master = []
     # This will collect results per region
@@ -542,6 +502,7 @@ def prepare_data(
         rescale_zoom=rescale_zoom,
         get_files_fn=get_files_fn,
         exclude=exclude,  # Pass None if not provided
+        straight_cut=straight_cut
     )
 
     """
@@ -610,6 +571,12 @@ if __name__ == "__main__":
         help='Whether to exclude certain POIs based on a predefined dictionary',
     )
 
+    parser.add_argument(
+        '--straight_cut',
+        action="store_true",
+        help='Whether to exclude certain POIs based on a predefined dictionary',
+    )
+
     args = parser.parse_args()
     print(args.derivatives_name)
 
@@ -633,4 +600,5 @@ if __name__ == "__main__":
         rescale_zoom=None if args.no_rescale else (0.8, 0.8, 0.8),
         n_workers=args.n_workers,
         exclude=args.exclude, 
+        straight_cut=args.straight_cut
     )

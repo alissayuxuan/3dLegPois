@@ -13,7 +13,7 @@ from TPTBox import BIDS_Global_info
 from pqdm.processes import pqdm
 from torch.utils.data import DataLoader
 
-from dataset.dataset import LegDataset, PoiDataset
+from dataset.dataset import FemurDataset, PatellaDataset, LowerLegDataset, PoiDataset
 from transforms.transforms import create_transform
 """
 from utils.dataloading_utils import (
@@ -37,7 +37,7 @@ class POIDataModule(pl.LightningDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (190, 215, 1165),#(128, 128, 96),
+        input_shape: tuple = (190, 215, 1165),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -113,8 +113,8 @@ class POIDataModule(pl.LightningDataModule):
         if self.transform_config is not None:
             transform = [create_transform(self.transform_config)]
 
-        if self.dataset == "Leg":
-            self.train_dataset = LegDataset(
+        if self.dataset == "Femur":
+            self.train_dataset = FemurDataset(
                 self.train_df,
                 input_shape=self.input_shape,
                 include_com=self.include_com,
@@ -125,7 +125,7 @@ class POIDataModule(pl.LightningDataModule):
                 poi_file_ending=self.poi_file_ending,
                 iterations=self.surface_erosion_iterations,
             )
-            self.val_dataset = LegDataset(
+            self.val_dataset = FemurDataset(
                 self.val_df,
                 input_shape=self.input_shape,
                 include_com=self.include_com,
@@ -136,7 +136,75 @@ class POIDataModule(pl.LightningDataModule):
                 poi_file_ending=self.poi_file_ending,
                 iterations=self.surface_erosion_iterations,
             )
-            self.test_dataset = LegDataset(
+            self.test_dataset = FemurDataset(
+                self.test_df,
+                input_shape=self.input_shape,
+                include_com=self.include_com,
+                include_poi_list=self.include_poi_list,
+                include_leg_list=self.include_leg_list,
+                transforms=None,
+                flip_prob=0.0,
+                poi_file_ending=self.poi_file_ending,
+                iterations=self.surface_erosion_iterations,
+            )
+        elif self.dataset == "Patella":
+            self.train_dataset = PatellaDataset(
+                self.train_df,
+                input_shape=self.input_shape,
+                include_com=self.include_com,
+                include_poi_list=self.include_poi_list,
+                include_leg_list=self.include_leg_list,
+                transforms=transform,
+                flip_prob=self.flip_prob,
+                poi_file_ending=self.poi_file_ending,
+                iterations=self.surface_erosion_iterations,
+            )
+            self.val_dataset = PatellaDataset(
+                self.val_df,
+                input_shape=self.input_shape,
+                include_com=self.include_com,
+                include_poi_list=self.include_poi_list,
+                include_leg_list=self.include_leg_list,
+                transforms=None,
+                flip_prob=0.0,
+                poi_file_ending=self.poi_file_ending,
+                iterations=self.surface_erosion_iterations,
+            )
+            self.test_dataset = PatellaDataset(
+                self.test_df,
+                input_shape=self.input_shape,
+                include_com=self.include_com,
+                include_poi_list=self.include_poi_list,
+                include_leg_list=self.include_leg_list,
+                transforms=None,
+                flip_prob=0.0,
+                poi_file_ending=self.poi_file_ending,
+                iterations=self.surface_erosion_iterations,
+            )
+        elif self.dataset == "LowerLeg":
+            self.train_dataset = LowerLegDataset(
+                self.train_df,
+                input_shape=self.input_shape,
+                include_com=self.include_com,
+                include_poi_list=self.include_poi_list,
+                include_leg_list=self.include_leg_list,
+                transforms=transform,
+                flip_prob=self.flip_prob,
+                poi_file_ending=self.poi_file_ending,
+                iterations=self.surface_erosion_iterations,
+            )
+            self.val_dataset = LowerLegDataset(
+                self.val_df,
+                input_shape=self.input_shape,
+                include_com=self.include_com,
+                include_poi_list=self.include_poi_list,
+                include_leg_list=self.include_leg_list,
+                transforms=None,
+                flip_prob=0.0,
+                poi_file_ending=self.poi_file_ending,
+                iterations=self.surface_erosion_iterations,
+            )
+            self.test_dataset = LowerLegDataset(
                 self.test_df,
                 input_shape=self.input_shape,
                 include_com=self.include_com,
@@ -174,14 +242,14 @@ class POIDataModule(pl.LightningDataModule):
         )
 
 
-class LegDataModule(POIDataModule):
+class FemurDataModule(POIDataModule):
     def __init__(
         self,
         master_df: PathLike,
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (190, 215, 1165),#(128, 128, 96),
+        input_shape: tuple = (170, 145, 625),#(190, 215, 1165),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -193,7 +261,79 @@ class LegDataModule(POIDataModule):
         surface_erosion_iterations: int = 1,
     ):
         super().__init__(
-            dataset="Leg",
+            dataset="Femur",
+            master_df=master_df,
+            train_subjects=train_subjects,
+            val_subjects=val_subjects,
+            test_subjects=test_subjects,
+            input_shape=input_shape,
+            flip_prob=flip_prob,
+            transform_config=transform_config,
+            include_com=include_com,
+            include_poi_list=include_poi_list,
+            include_leg_list=include_leg_list,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            poi_file_ending=poi_file_ending,
+            surface_erosion_iterations=surface_erosion_iterations,
+        )
+
+class PatellaDataModule(POIDataModule):
+    def __init__(
+        self,
+        master_df: PathLike,
+        train_subjects: list,
+        val_subjects: list,
+        test_subjects: list,
+        input_shape: tuple = (70, 45, 70), #(190, 215, 1165),#(128, 128, 96),
+        flip_prob: float = 0.5,
+        transform_config: dict | None = None,
+        include_com: bool = False,
+        include_poi_list=None,
+        include_leg_list=None,
+        batch_size: int = 1,
+        num_workers: int = 0,
+        poi_file_ending: str = "poi.json",
+        surface_erosion_iterations: int = 1,
+    ):
+        super().__init__(
+            dataset="Patella",
+            master_df=master_df,
+            train_subjects=train_subjects,
+            val_subjects=val_subjects,
+            test_subjects=test_subjects,
+            input_shape=input_shape,
+            flip_prob=flip_prob,
+            transform_config=transform_config,
+            include_com=include_com,
+            include_poi_list=include_poi_list,
+            include_leg_list=include_leg_list,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            poi_file_ending=poi_file_ending,
+            surface_erosion_iterations=surface_erosion_iterations,
+        )
+
+class LowerLegDataModule(POIDataModule):
+    def __init__(
+        self,
+        master_df: PathLike,
+        train_subjects: list,
+        val_subjects: list,
+        test_subjects: list,
+        input_shape: tuple = (150, 165, 550),#(190, 215, 1165),#(128, 128, 96),
+        flip_prob: float = 0.5,
+        transform_config: dict | None = None,
+        include_com: bool = False,
+        include_poi_list=None,
+        include_leg_list=None,
+        batch_size: int = 1,
+        num_workers: int = 0,
+        poi_file_ending: str = "poi.json",
+        surface_erosion_iterations: int = 1,
+    ):
+        super().__init__(
+            dataset="LowerLeg",
             master_df=master_df,
             train_subjects=train_subjects,
             val_subjects=val_subjects,
@@ -231,13 +371,16 @@ class LegDataModule(POIDataModule):
 def create_data_module(config):
     module_type = config["type"]
     module_params = config["params"]
-    if module_type == "LegDataModule":
-        return LegDataModule(**module_params)
+    if module_type == "FemurDataModule":
+        return FemurDataModule(**module_params)
+    elif module_type == "PatellaDataModule":
+        return PatellaDataModule(**module_params)
+    elif module_type == "LowerLegDataModule":
+        return LowerLegDataModule(**module_params)
     else:
         raise ValueError(f"Data module type {module_type} not recognized")
 
     
-
 
 if __name__ == "__main__":
     bids_surgery_poi = BIDS_Global_info(
@@ -245,7 +388,7 @@ if __name__ == "__main__":
     )
     save_path = "/home/daniel/Data/Implants/cutouts_scale-1-1-1"
 
-    data_module = ImplantsDataModule()
+    data_module = FemurDataModule()#ImplantsDataModule()
     data_module.prepare_data(bids_surgery_poi, save_path, rescale_zoom=(1, 1, 1))
 
     bids_surgery_poi = BIDS_Global_info(
@@ -255,5 +398,5 @@ if __name__ == "__main__":
     )
     save_path = "/home/daniel/Data/Gruber/cutouts_scale-1-1-1"
 
-    data_module = GruberDataModule()
+    data_module = PatellaDataModule() #GruberDataModule()
     data_module.prepare_data(bids_surgery_poi, save_path, rescale_zoom=(1, 1, 1))

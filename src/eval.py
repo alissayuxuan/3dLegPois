@@ -18,11 +18,11 @@ from TPTBox.core.poi import POI
 import shutil  # For file operations
 
 from modules.PoiModule import PoiPredictionModule
-from src.modules.PoiDataModules import JointDataModule, POIDataModule
+from src.modules.PoiDataModules import POIDataModule
 from utils.misc import surface_project_coords
 
 
-def load_data_module_from_config(config_path, joint=False, alternative_poi_ending=None):
+def load_data_module_from_config(config_path, alternative_poi_ending=None):
     # Load the configuration file
     with open(config_path, "r") as f:
         config = json.load(f)
@@ -31,10 +31,7 @@ def load_data_module_from_config(config_path, joint=False, alternative_poi_endin
     config["batch_size"] = 1
     if alternative_poi_ending is not None:
         config["poi_file_ending"] = alternative_poi_ending
-    if joint:
-        return JointDataModule(**config)
-    else:
-        return POIDataModule(**config)
+    return POIDataModule(**config)
 
 
 def load_model_from_checkpoint(checkpoint_path):
@@ -45,7 +42,7 @@ def load_model_from_checkpoint(checkpoint_path):
 
 def np_to_ctd(
     t,
-    vertebra,
+    leg,
     origin,
     rotation,
     idx_list=None,
@@ -58,9 +55,9 @@ def np_to_ctd(
         coords = np.array(coords).astype(float) - np.array(offset).astype(float)
         coords = (coords[0], coords[1], coords[2])
         if idx_list is None:
-            ctd[vertebra, i] = coords
+            ctd[leg, i] = coords
         elif i < len(idx_list):
-            ctd[vertebra, idx_list[i]] = coords
+            ctd[leg, idx_list[i]] = coords
 
     ctd = POI(
         centroids=ctd,
@@ -78,7 +75,6 @@ def create_prediction_poi_files(
     checkpoint_path,
     poi_file_ending,
     split="val",
-    joint=False,
     save_in_dir=False,
     save_path=None,
     return_paths=False,
@@ -94,7 +90,7 @@ def create_prediction_poi_files(
     if not poi_file_ending.endswith(".json"):
         raise ValueError("The poi_file_ending must be a json file")
 
-    data_module = load_data_module_from_config(data_module_save_path, joint=joint)
+    data_module = load_data_module_from_config(data_module_save_path)
     data_module.setup()
 
     # Load the checkpoint
@@ -119,7 +115,7 @@ def create_prediction_poi_files(
         batch = poi_module(batch)
 
         subject_batch = batch["subject"]
-        vertebra_batch = batch["vertebra"]
+        leg_batch = batch["leg"]
         refined_preds_batch = batch["refined_preds"]
         if project:
             refined_preds_projected_batch, _ = surface_project_coords(
@@ -132,7 +128,7 @@ def create_prediction_poi_files(
         loss_mask_batch = batch["loss_mask"] #Alissa
 
         # Detach all tensors
-        vertebra_batch = vertebra_batch.detach().cpu().numpy()
+        leg_batch = leg_batch.detach().cpu().numpy()
         refined_preds_batch = refined_preds_batch.detach().cpu().numpy()
         if project:
             refined_preds_projected_batch = (
@@ -145,9 +141,9 @@ def create_prediction_poi_files(
 
         pred_batch = refined_preds_projected_batch if project else refined_preds_batch
 
-        for sub, vert, preds, indices, poi_path, offset, mask in zip( #Alissa: mask
+        for sub, leg, preds, indices, poi_path, offset, mask in zip( #Alissa: mask
             subject_batch,
-            vertebra_batch,
+            leg_batch,
             pred_batch,
             target_indices_batch,
             poi_path_batch,
@@ -172,7 +168,7 @@ def create_prediction_poi_files(
             # Create the new POI file
             ctd = np_to_ctd(
                 preds,
-                vert,
+                leg,
                 origin,
                 rotation,
                 idx_list=indices,
@@ -196,20 +192,55 @@ def create_prediction_poi_files(
                 # Make sure the save path exists
                 os.makedirs(save_path, exist_ok=True)
                 ctd_save_path = os.path.join(
-                    save_path, str(sub) + "_" + str(vert) + "_" + poi_file_ending
+                    save_path, str(sub) + "_" + str(leg) + "_" + poi_file_ending
                 )
 
             ctd.save(ctd_save_path, verbose=False)
+    
+            # === (1) Speichere globale Prediction-POIs ===
+            if not os.path.exists(ctd_save_path):
+                print(f"⚠️ Prediction file not found: {ctd_save_path}")
+                continue
+            ctd_global_save_path = ctd_save_path.replace("_pred.json", "_pred_global.json")
+            POI.load(ctd_save_path).to_global().save_mrk(ctd_global_save_path)
+
+            # === (2) Speichere GT-POI-Datei ===
+            gt_poi = POI.load(poi_path).extract_region(leg)
+            gt_save_path = ctd_save_path.replace("_pred.json", "_gt.json")
+            gt_poi.save(gt_save_path)
+
+            # === (3) Speichere globale GT-POIs ===
+            gt_global_save_path = gt_save_path.replace("_gt.json", "_gt_global.json")
+            gt_poi.to_global().save_mrk(gt_global_save_path)
+
+            # === (4) Kopiere Segmentationsmaske ===
+            seg_leg_path = poi_path.replace("poi.json", "split.nii.gz")
+            seg_save_path = ctd_save_path.replace("_pred.json", "_seg.nii.gz")
+            if os.path.exists(seg_leg_path):
+                shutil.copy(seg_leg_path, seg_save_path)
+            else:
+                print(f"⚠️ Segmentation file not found: {seg_leg_path}")
 
             if return_paths:
-                poi_paths_dict[sub, vert] = {
+                poi_paths_dict[sub, leg] = {
                     "gt": poi_path,
                     "pred": ctd_save_path,
-                    "seg_vert": poi_path.replace("poi.json", "vertseg.nii.gz"),
+                    "seg_leg": poi_path.replace("poi.json", "split.nii.gz"),
                 }
 
     if return_paths:
         return poi_paths_dict
+    """
+            if return_paths:
+                poi_paths_dict[sub, leg] = {
+                    "gt": poi_path,
+                    "pred": ctd_save_path,
+                    "seg_leg": poi_path.replace("poi.json", "split.nii.gz"),
+                }
+
+    if return_paths:
+        return poi_paths_dict
+    """
 
 
 def create_self_training_pois(
@@ -217,7 +248,6 @@ def create_self_training_pois(
     checkpoint_path,
     poi_file_ending,
     split="val",
-    joint=False,
     thre=3.0,
 ):
     new_bad_pois = {
@@ -230,7 +260,7 @@ def create_self_training_pois(
     if not poi_file_ending.endswith(".json"):
         raise ValueError("The poi_file_ending must be a json file")
 
-    data_module = load_data_module_from_config(data_module_save_path, joint=joint)
+    data_module = load_data_module_from_config(data_module_save_path)
     data_module.setup()
 
     # Load the checkpoint
@@ -344,18 +374,15 @@ def create_self_training_pois(
 
     return new_bad_pois
 
-
 def run_predictions(
     data_module_save_path,
     checkpoint_path,
     split="val",
-    joint=False,
     alternative_poi_ending=None,
 ):
     # Change the ending of the POI files if necessary
     data_module = load_data_module_from_config(
         data_module_save_path,
-        joint=joint,
         alternative_poi_ending=alternative_poi_ending,
     )
     data_module.setup()
@@ -377,7 +404,7 @@ def run_predictions(
 
     pred_dict = {
         "subject": [],
-        "vertebra": [],
+        "leg": [],
         "poi_idx": [],
         "target": [],
         "coarse": [],
@@ -397,9 +424,9 @@ def run_predictions(
         }
         batch = poi_module(batch)
 
-        # Get target, coarse preds, refined preds, subject, vertebra and target indices
+        # Get target, coarse preds, refined preds, subject, leg and target indices
         subject_batch = batch["subject"]
-        vertebra_batch = batch["vertebra"]
+        leg_batch = batch["leg"]
 
         target_batch = batch["target"]
         target_indices_batch = batch["target_indices"]
@@ -418,7 +445,7 @@ def run_predictions(
         )
 
         # Detach all tensors and convert to numpy
-        vertebra_batch = vertebra_batch.detach().cpu().numpy()
+        leg_batch = leg_batch.detach().cpu().numpy()
         target_batch = target_batch.detach().cpu().numpy()
         target_indices_batch = target_indices_batch.detach().cpu().numpy()
         loss_mask_batch = loss_mask_batch.detach().cpu().numpy()
@@ -448,7 +475,7 @@ def run_predictions(
             "refined_preds_proj_distances",
             "loss_mask",
             "subject",
-            "vertebra",
+            "leg",
         ]
 
         for values in zip(
@@ -462,7 +489,7 @@ def run_predictions(
             refined_preds_proj_distances_batch,
             loss_mask_batch,
             subject_batch,
-            vertebra_batch,
+            leg_batch,
         ):
             data_dict = dict(zip(keys, values))
             # Iterate over all POIs to collect POI-wise information
@@ -478,7 +505,7 @@ def run_predictions(
                 data_dict["loss_mask"],
             ):
                 pred_dict["subject"].append(data_dict["subject"])
-                pred_dict["vertebra"].append(data_dict["vertebra"])
+                pred_dict["leg"].append(data_dict["leg"])
                 pred_dict["poi_idx"].append(poi_idx)
                 pred_dict["target"].append(t)
                 pred_dict["coarse"].append(c)
@@ -491,16 +518,14 @@ def run_predictions(
 
     return pred_dict
 
-
 def create_prediction_df(
     data_module_save_path,
     checkpoint_path,
     split="val",
-    joint=False,
     alternative_poi_ending=None,
 ):
     pred_dict = run_predictions(
-        data_module_save_path, checkpoint_path, split, joint, alternative_poi_ending
+        data_module_save_path, checkpoint_path, split, alternative_poi_ending
     )
     # Calculate distances between target and predicted POIs
     pred_dict["coarse_error"] = [
@@ -526,7 +551,6 @@ def create_prediction_df(
     df = pd.DataFrame(pred_dict)
     return df
 
-
 def calculate_metrics(errors, threshold=2.0):
     mean_error = np.mean(errors)
     median_error = np.median(errors)
@@ -534,7 +558,6 @@ def calculate_metrics(errors, threshold=2.0):
     accuracy = np.mean(errors < threshold)
     max_error = np.max(errors)
     return mean_error, median_error, mse, accuracy, max_error
-
 
 def compute_overall_metrics(df):
     # Create an empty DataFrame to hold the metrics
@@ -553,7 +576,6 @@ def compute_overall_metrics(df):
 
     return metrics_df
 
-
 def compute_poi_wise_metrics(df):
     # Group by poi_idx and calculate metrics for refined_proj_error
     grouped = df.groupby("poi_idx")["refined_proj_error"]
@@ -562,10 +584,17 @@ def compute_poi_wise_metrics(df):
 
     return metrics_df
 
+def compute_leg_wise_metrics(df):
+    # Group by leg and calculate metrics for refined_proj_error
+    grouped = df.groupby("leg")["refined_proj_error"]
+    metrics_df = grouped.apply(lambda x: calculate_metrics(x)).apply(pd.Series)
+    metrics_df.columns = ["Mean Error", "Median Error", "MSE", "Accuracy", "Max Error"]
 
-def compute_vert_wise_metrics(df):
+    return metrics_df
+
+def compute_sub_wise_metrics(df):
     # Group by vertebra and calculate metrics for refined_proj_error
-    grouped = df.groupby("vertebra")["refined_proj_error"]
+    grouped = df.groupby("subject")["refined_proj_error"]
     metrics_df = grouped.apply(lambda x: calculate_metrics(x)).apply(pd.Series)
     metrics_df.columns = ["Mean Error", "Median Error", "MSE", "Accuracy", "Max Error"]
 
@@ -573,7 +602,7 @@ def compute_vert_wise_metrics(df):
 
 def filter_high_error_pois(df: pd.DataFrame, threshold: float) -> pd.DataFrame:
     """
-    Gibt ein neues DataFrame mit subject, vertebra und poi_idx zurück,
+    Gibt ein neues DataFrame mit subject, leg und poi_idx zurück,
     für die der refined_proj_error größer als thre_hold ist.
 
     Parameter:
@@ -581,10 +610,10 @@ def filter_high_error_pois(df: pd.DataFrame, threshold: float) -> pd.DataFrame:
     threshold (float): Schwellwert für refined_proj_error.
 
     Rückgabe:
-    pd.DataFrame: Gefiltertes DataFrame mit den Spalten subject, vertebra und poi_idx.
+    pd.DataFrame: Gefiltertes DataFrame mit den Spalten subject, leg und poi_idx.
     """
     filtered_df = df[df['refined_proj_error'] > threshold]
-    return filtered_df[['subject', 'vertebra', 'poi_idx', 'refined_proj_error']].reset_index(drop=True)
+    return filtered_df[['subject', 'leg', 'poi_idx', 'refined_proj_error']].reset_index(drop=True)
 
 
 if __name__ == "__main__":
@@ -608,10 +637,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_path", type=str, help="Path to save the evaluation results"
     )
-    parser.add_argument(
-        "--joint", action="store_true", help="Whether to use the JointDataModule"
-    )
-
 
     args = parser.parse_args()
     
@@ -619,40 +644,42 @@ if __name__ == "__main__":
     os.makedirs(args.save_path, exist_ok=True)
 
 
-    """ Create DataFrame with prediction information """
+    ### Create DataFrame with prediction information 
     prediction_df = create_prediction_df(
-        args.data_module_save_path, args.checkpoint_path, args.split, args.joint
+        args.data_module_save_path, args.checkpoint_path, args.split
     )
     prediction_df = prediction_df[prediction_df['loss_mask'] == True]
 
     prediction_df.to_csv(os.path.join(args.save_path, "results.csv"))
     print("Prediction DataFrame saved")
 
-    """ Compute overall metrics """
+    ### Compute overall metrics 
     metrics_df = compute_overall_metrics(prediction_df)
     metrics_df.to_csv(os.path.join(args.save_path, "overall_metrics.csv"))
     print("Overal metrics saved")
 
-    """ Compute POI-wise metrics """
-
-    #prediction_df = pd.read_csv("experiments/experiment_evaluation/gruber/surface/excel_excluded_pois/no_freeze/val/version_2_epoch_55/results.csv")
-    #save_path = "experiments/experiment_evaluation/gruber/surface/excel_excluded_pois/no_freeze/val/version_2_epoch_55/"
+    ### Compute POI-wise metrics 
     poi_metrics_df = compute_poi_wise_metrics(prediction_df)
     poi_metrics_df.to_csv(os.path.join(args.save_path, "poi_metrics.csv"))
     print("POI-wise metrics saved")
 
-    """Compute vertebra-wise metrics """
-    vert_metrics_df = compute_vert_wise_metrics(prediction_df)
-    vert_metrics_df.to_csv(os.path.join(args.save_path, "vertebra_metrics.csv"))
-    print("Vertebra-wise metrics saved")
+    ### Compute leg-wise metrics 
+    leg_metrics_df = compute_leg_wise_metrics(prediction_df)
+    leg_metrics_df.to_csv(os.path.join(args.save_path, "leg_metrics.csv"))
+    print("Leg-wise metrics saved")
 
-    """Find Outliers"""
+    ### Compute subject-wise metrics
+    sub_metrics_df = compute_sub_wise_metrics(prediction_df)
+    sub_metrics_df.to_csv(os.path.join(args.save_path, "subject_metrics.csv"))
+    print("Subject-wise metrics saved")
+
+    ### Find Outliers
     outlier_df = filter_high_error_pois(prediction_df, 10)
     outlier_df.to_csv(os.path.join(args.save_path, "outliers_error_higher_10.csv"))
     print("Outliers (error > 10) saved")
 
     
-    """ Create Prediction files """
+    ### Create Prediction files 
     prediction_files_path = os.path.join(args.save_path, "prediction_files")
     os.makedirs(prediction_files_path, exist_ok=True)
 
@@ -662,22 +689,21 @@ if __name__ == "__main__":
         checkpoint_path=args.checkpoint_path,
         poi_file_ending="_pred.json",
         split=args.split,
-        joint=args.joint,
         save_path=prediction_files_path,
         return_paths=True, 
-        project=True  
+        project=False  
     )
 
     # Copy ground truth POIs to output directory for comparison
-    for (sub, vert), paths in poi_paths_dict.items():
+    """for (sub, leg), paths in poi_paths_dict.items():
         gt_poi = POI.load(paths["gt"])
-        gt_poi = gt_poi.extract_region(vert)  # Extract region for the specific vertebra
-        gt_save_path = os.path.join(prediction_files_path, f"{sub}_{vert}_gt.json")
+        gt_poi = gt_poi.extract_region(leg)  # Extract region for the specific leg
+        gt_save_path = os.path.join(prediction_files_path, f"{sub}_{leg}_gt.json")
         gt_poi.save(gt_save_path)
 
-        seg_path = paths["seg_vert"]
-        seg_save_path = os.path.join(prediction_files_path, f"{sub}_{vert}_seg.nii.gz")
-        shutil.copy(seg_path, seg_save_path)
+        seg_path = paths["seg_leg"]
+        seg_save_path = os.path.join(prediction_files_path, f"{sub}_{leg}_seg.nii.gz")
+        shutil.copy(seg_path, seg_save_path)"""
 
 
     print(f"Saved predictions and ground truths to: {prediction_files_path}")

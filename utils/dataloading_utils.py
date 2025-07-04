@@ -295,7 +295,7 @@ def pad_array_to_shape(arr, target_shape):
     Returns:
     - Padded numpy array of shape (H', W', D')
     """
-    # Calculate the padding needed for each dimension
+    # Calculate the padding needed for each dimension    
     pad_h = (target_shape[0] - arr.shape[0]) // 2
     pad_w = (target_shape[1] - arr.shape[1]) // 2
     pad_d = (target_shape[2] - arr.shape[2]) // 2

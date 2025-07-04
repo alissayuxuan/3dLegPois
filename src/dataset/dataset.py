@@ -18,7 +18,7 @@ class PoiDataset(Dataset):
         poi_indices,
         include_leg_list,
         poi_flip_pairs=None,
-        input_shape=(190, 215, 1165),#(128, 128, 96),
+        input_shape=(190, 215, 1165),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -184,11 +184,11 @@ class PoiDataset(Dataset):
         return data_dict
 
 
-class LegDataset(PoiDataset):
+class FemurDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape=(190, 215, 1165),#(128, 128, 96), #TODO
+        input_shape= (170, 145, 625),#(190, 215, 1165),#(128, 128, 96), #TODO
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -204,77 +204,11 @@ class LegDataset(PoiDataset):
                 if include_poi_list
                 else (
                     [
-                        1, 
-                        2,
-                        3,
-                        4,
-                        5,
-                        6,
-                        7,
-                        8,
-                        9,
-                        10,
-                        11,
-                        12,
-                        13,
-                        14,
-                        15,
-                        16,
-                        17,
-                        18,
-                        19,
-                        20,
-                        21,
-                        22,
-                        23,
-                        24,
-                        25,
-                        26,
-                        27,
-                        28,
-                        29,
-                        30,
-                        31,
-                        32,
-                        98,
-                        99
+                        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
                     ]
                     if include_com
                     else [
-                        1, 
-                        2,
-                        3,
-                        4,
-                        5,
-                        6,
-                        7,
-                        8,
-                        9,
-                        10,
-                        11,
-                        12,
-                        13,
-                        14,
-                        15,
-                        16,
-                        17,
-                        18,
-                        19,
-                        20,
-                        21,
-                        22,
-                        23,
-                        24,
-                        25,
-                        26,
-                        27,
-                        28,
-                        29,
-                        30,
-                        31,
-                        32,
-                        98,
-                        99
+                        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
                     ]
                 )
             ),
@@ -282,8 +216,73 @@ class LegDataset(PoiDataset):
                 include_leg_list
                 if include_leg_list
                 else [
-                    1,
-                    2
+                    1, 2
+                ]
+            ),
+            poi_flip_pairs={
+                # Middle points
+                10: 10,
+                11: 11,
+                12: 12,
+                13: 13, #???
+                18: 18,
+                19: 19,
+                20: 20,
+
+                # Flipped left to right
+                8: 9,
+                #13: 32,
+                14: 21,
+                15: 22,
+                16: 17,
+
+                # Flipped right to left
+                9: 8,
+                21: 14,
+                22: 15,
+                17: 16,
+            },
+            input_shape=input_shape,
+            transforms=transforms,
+            flip_prob=flip_prob,
+            include_com=include_com,
+            poi_file_ending=poi_file_ending,
+            iterations=iterations,
+        )
+
+class PatellaDataset(PoiDataset):
+    def __init__(
+        self,
+        master_df,
+        input_shape= (70, 50, 70), #(190, 215, 1165),#(128, 128, 96), #TODO
+        transforms=None,
+        flip_prob=0.5,
+        include_com=False,
+        include_poi_list=None,
+        include_leg_list=None,
+        poi_file_ending="poi.json",
+        iterations=1,
+    ):
+        super().__init__(
+            master_df,
+            poi_indices=(
+                include_poi_list
+                if include_poi_list
+                else (
+                    [
+                        1, 2, 3, 4, 5, 6, 7
+                    ]
+                    if include_com
+                    else [
+                        1, 2, 3, 4, 5, 6, 7
+                    ]
+                )
+            ),
+            include_leg_list=(
+                include_leg_list
+                if include_leg_list
+                else [
+                    1, 2
                 ]
             ),
             poi_flip_pairs={
@@ -291,41 +290,82 @@ class LegDataset(PoiDataset):
                 1: 1,
                 2: 2,
                 7: 7,
-                10: 10,
-                11: 11,
-                12: 12,
-                18: 18,
-                19: 19,
-                20: 20,
-                23: 23,
-                30: 30,
-                98: 98,
-                99: 99,
 
                 # Flipped left to right
                 3: 4,
                 5: 6,
-                8: 9,
-                13: 32,
-                14: 21,
-                15: 22,
-                16: 17,
-                24: 25,
-                26: 27,
-                28: 29,
-                31: 32,
 
                 # Flipped right to left
                 4: 3,
                 6: 5,
-                9: 8,
-                32: 13,
-                21: 14,
-                22: 15,
-                17: 16,
+            },
+            input_shape=input_shape,
+            transforms=transforms,
+            flip_prob=flip_prob,
+            include_com=include_com,
+            poi_file_ending=poi_file_ending,
+            iterations=iterations,
+        )
+
+class LowerLegDataset(PoiDataset):
+    def __init__(
+        self,
+        master_df,
+        input_shape= (150, 165, 555), #(190, 215, 1165),#(128, 128, 96), #TODO
+        transforms=None,
+        flip_prob=0.5,
+        include_com=False,
+        include_poi_list=None,
+        include_leg_list=None,
+        poi_file_ending="poi.json",
+        iterations=1,
+    ):
+        super().__init__(
+            master_df,
+            poi_indices=(
+                include_poi_list
+                if include_poi_list
+                else (
+                    [
+                        114, 119, 120, 121, 122, 23, 24, 25, 26, 27, 28, 29, 30, 31, 98, 99, 32
+                    ]
+                    if include_com
+                    else [
+                        114, 119, 120, 121, 122, 23, 24, 25, 26, 27, 28, 29, 30, 31, 98, 99, 32
+                    ]
+                )
+            ),
+            include_leg_list=(
+                include_leg_list
+                if include_leg_list
+                else [
+                    1, 2
+                ]
+            ),
+            poi_flip_pairs={
+                # Middle points
+                23: 23,
+                30: 30,
+                98: 98,
+                99: 99,
+                119: 119,
+                120: 120,
+                122: 122,
+                # Flipped left to right
+                24: 25,
+                26: 27,
+                28: 29,
+                31: 32,
+                114: 121,
+
+
+                # Flipped right to left
                 25: 24,
                 27: 26,
                 29: 28,
+                32: 31,
+                121: 114,
+
             },
             input_shape=input_shape,
             transforms=transforms,
