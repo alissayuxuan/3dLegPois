@@ -1,0 +1,101 @@
+{
+    "dataset": "Femur",
+    "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/cutouts_all/femur/master_df.csv",
+    "train_subjects": [
+        "CTFU00099",
+        "CTFU04045",
+        "CTFU04072",
+        "CTFU04656",
+        "MM00024",
+        "MM00027",
+        "MM00069",
+        "MM00070"
+    ],
+    "val_subjects": [
+        "MM00071",
+        "MM00213"
+    ],
+    "test_subjects": [
+        "MM00214",
+        "MM00233"
+    ],
+    "input_shape": [
+        170,
+        145,
+        625
+    ],
+    "flip_prob": 0.5,
+    "transform_config": {
+        "type": "LandmarksRandAffine",
+        "params": {
+            "prob": 0.8,
+            "rotate_range": [
+                [
+                    -0.3490658503988659,
+                    0.3490658503988659
+                ],
+                [
+                    -0.3490658503988659,
+                    0.3490658503988659
+                ],
+                [
+                    -0.3490658503988659,
+                    0.3490658503988659
+                ]
+            ],
+            "shear_range": [
+                [
+                    -0.1,
+                    0.1
+                ],
+                [
+                    -0.1,
+                    0.1
+                ],
+                [
+                    -0.1,
+                    0.1
+                ]
+            ],
+            "translate_range": [
+                [
+                    -5,
+                    5
+                ],
+                [
+                    -5,
+                    5
+                ],
+                [
+                    -5,
+                    5
+                ]
+            ],
+            "scale_range": [
+                [
+                    -0.2,
+                    0.1
+                ],
+                [
+                    -0.2,
+                    0.1
+                ],
+                [
+                    -0.2,
+                    0.1
+                ]
+            ],
+            "device": "cpu"
+        }
+    },
+    "include_com": false,
+    "include_poi_list": null,
+    "include_leg_list": [
+        1,
+        2
+    ],
+    "batch_size": 1,
+    "num_workers": 3,
+    "poi_file_ending": "poi.json",
+    "surface_erosion_iterations": 1
+}

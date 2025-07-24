@@ -1,0 +1,48 @@
+coarse_config:
+  params:
+    block_config:
+    - 6
+    - 12
+    - 12
+    bn_size: 4
+    dropout_prob: 0.0
+    feature_l: 256
+    growth_rate: 32
+    in_channels: 1
+    init_features: 64
+    loss_fn: WingLoss
+    lr: 0.0002162343798812412
+    n_landmarks: 15
+    project_gt: false
+  type: SADenseNet
+feature_freeze_patience: null
+loss_weights:
+- 1.359072464663513
+- 1.4665196354167183
+lr: 0.001
+optimizer: AdamW
+refinement_config:
+  params:
+    coord_embedding_l: 64
+    dropout: 0.22394010684598445
+    leg_embedding_l: 128
+    loss_fn: WingLoss
+    lr: 5.320951921087776e-05
+    mlp_dim: 1024
+    n_landmarks: 15
+    n_legs: 2
+    num_heads: 8
+    num_layers: 4
+    patch_feature_l: 64
+    patch_size: 16
+    poi_embedding_l: 64
+    poi_feature_l: 256
+    project_gt: false
+    warmup_epochs: -1
+  type: PatchTransformer
+scheduler_config:
+  params:
+    end_factor: 0.1
+    start_factor: 1
+    total_iters: 19
+  type: LinearLR

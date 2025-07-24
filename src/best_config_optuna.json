@@ -1,0 +1,11 @@
+{
+    "coarse_lr": 8.390648703957793e-05,
+    "refine_lr": 4.092859346590849e-05,
+    "dropout": 0.22766125852165028,
+    "loss_weight_coarse": 0.9762977667517376,
+    "loss_weight_refine": 1.109671476583304,
+    "num_layers": 4,
+    "num_heads": 8,
+    "mlp_dim": 1024,
+    "total_iters": 41
+}

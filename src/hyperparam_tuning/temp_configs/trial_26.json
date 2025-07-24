@@ -1,0 +1,191 @@
+{
+    "path": "hyperparam_tuning/optuna_runs/trial_26",
+    "name": "trial_26",
+    "module_config": {
+        "type": "PoiPredictionModule",
+        "params": {
+            "coarse_config": {
+                "type": "SADenseNet",
+                "params": {
+                    "in_channels": 1,
+                    "n_landmarks": 15,
+                    "loss_fn": "WingLoss",
+                    "feature_l": 256,
+                    "init_features": 64,
+                    "growth_rate": 32,
+                    "block_config": [
+                        6,
+                        12,
+                        12
+                    ],
+                    "bn_size": 4,
+                    "dropout_prob": 0.0,
+                    "lr": 0.0002664449527822308,
+                    "project_gt": false
+                }
+            },
+            "refinement_config": {
+                "type": "PatchTransformer",
+                "params": {
+                    "n_landmarks": 15,
+                    "n_legs": 2,
+                    "patch_size": 16,
+                    "poi_feature_l": 256,
+                    "patch_feature_l": 64,
+                    "coord_embedding_l": 64,
+                    "poi_embedding_l": 64,
+                    "leg_embedding_l": 128,
+                    "loss_fn": "WingLoss",
+                    "warmup_epochs": -1,
+                    "mlp_dim": 512,
+                    "num_layers": 1,
+                    "num_heads": 8,
+                    "dropout": 0.18016333665539777,
+                    "lr": 8.417705055229609e-05,
+                    "project_gt": false
+                }
+            },
+            "lr": 0.001,
+            "loss_weights": [
+                0.7232771351354726,
+                1.8273322960702783
+            ],
+            "optimizer": "AdamW",
+            "scheduler_config": {
+                "type": "LinearLR",
+                "params": {
+                    "start_factor": 1,
+                    "end_factor": 0.1,
+                    "total_iters": 20
+                }
+            }
+        }
+    },
+    "callbacks_config": [
+        {
+            "type": "ModelCheckpoint",
+            "params": {
+                "monitor": "fine_mean_distance_masked_val",
+                "filename": "sad-pt-{epoch:02d}-{fine_mean_distance_val:.2f}",
+                "save_top_k": 3,
+                "mode": "min"
+            }
+        },
+        {
+            "type": "EarlyStopping",
+            "params": {
+                "monitor": "fine_mean_distance_val",
+                "patience": 20,
+                "verbose": true,
+                "mode": "min"
+            }
+        }
+    ],
+    "trainer_config": {
+        "accelerator": "gpu",
+        "max_epochs": 200,
+        "log_every_n_steps": 10,
+        "accumulate_grad_batches": 2
+    },
+    "data_module_config": {
+        "type": "FemurDataModule",
+        "region": "Femur",
+        "params": {
+            "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/cutouts_all/femur/master_df.csv",
+            "train_subjects": [
+                "CTFU00099",
+                "CTFU04045",
+                "CTFU04072",
+                "CTFU04656",
+                "MM00024",
+                "MM00027",
+                "MM00069",
+                "MM00070"
+            ],
+            "val_subjects": [
+                "MM00071",
+                "MM00213"
+            ],
+            "test_subjects": [
+                "MM00214",
+                "MM00233"
+            ],
+            "input_shape": [
+                170,
+                145,
+                625
+            ],
+            "flip_prob": 0.5,
+            "transform_config": {
+                "type": "LandmarksRandAffine",
+                "params": {
+                    "prob": 0.8,
+                    "rotate_range": [
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ],
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ],
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ]
+                    ],
+                    "shear_range": [
+                        [
+                            -0.1,
+                            0.1
+                        ],
+                        [
+                            -0.1,
+                            0.1
+                        ],
+                        [
+                            -0.1,
+                            0.1
+                        ]
+                    ],
+                    "translate_range": [
+                        [
+                            -5,
+                            5
+                        ],
+                        [
+                            -5,
+                            5
+                        ],
+                        [
+                            -5,
+                            5
+                        ]
+                    ],
+                    "scale_range": [
+                        [
+                            -0.2,
+                            0.1
+                        ],
+                        [
+                            -0.2,
+                            0.1
+                        ],
+                        [
+                            -0.2,
+                            0.1
+                        ]
+                    ],
+                    "device": "cpu"
+                }
+            },
+            "include_com": false,
+            "batch_size": 1,
+            "num_workers": 3,
+            "include_leg_list": [
+                1,
+                2
+            ]
+        }
+    }
+}

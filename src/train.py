@@ -85,6 +85,12 @@ def run_experiment(experiment_config):
     print(f"Max epochs allowed: {trainer.max_epochs}")    
 
 
+    val_metric = trainer.callback_metrics.get("fine_mean_distance_val")
+    if val_metric is not None:
+        with open(os.path.join(logger.log_dir, "best_metric.json"), "w") as f:
+            json.dump({"val_loss": float(val_metric)}, f)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, help="Experiment config file")

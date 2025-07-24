@@ -168,7 +168,6 @@ def remove_other_region_pois(poi_object: POI, allowed_region_ids: list[int]) -> 
 
     return poi_object
 
-
 def get_right_poi(container) -> POI:
     right_poi_query = container.new_query(flatten=True)
     right_poi_query.filter_format("poi")
@@ -200,11 +199,10 @@ def get_left_poi(container) -> POI:
         return None
     
     left_poi_candidate = left_poi_query.candidates[0]
-    print(f"Loading POI from: {left_poi_candidate}")
+    print(f"Loading Left POI from: {left_poi_candidate}")
 
     try:
         poi = POI_Global.load(left_poi_candidate.file["json"])
-        # TODO: turn glocal POI into local POI
         return poi
     except Exception as e:
         print(f"Error loading POI: {str(e)}")
@@ -214,6 +212,11 @@ def get_ct(container) -> NII:
     ct_query = container.new_query(flatten=True)
     ct_query.filter_format("ct")
     ct_query.filter_filetype("nii.gz")  # only nifti files
+
+    if not ct_query.candidates:
+        print("ERROR: CT candidates found!")
+        return None
+        
     ct_candidate = ct_query.candidates[0]
 
     try:
@@ -257,7 +260,6 @@ def get_subreg(container) -> NII:
         print(f"Error opening subreg: {str(e)}")
         return None
 
-
 def get_files(
     container,
     get_right_poi_fn: Callable,
@@ -274,7 +276,7 @@ def get_files(
         get_subreg_fn(container),
     )
 
-def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2, straight_cut=False):
+def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, straight_cut, margin=2):
     """
     Computes a bounding box that covers the region defined by:
     - a specific leg side (from split_mask)
@@ -292,6 +294,7 @@ def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2, st
     Returns:
         Tuple[slice, slice, slice]: z, y, x slices to crop the image/volume
     """
+    print("straight_cut in getbb: ", straight_cut)
 
     assert split_mask.shape == subreg_mask.shape, "Masks must have the same shape."
 
@@ -305,12 +308,10 @@ def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2, st
         raise ValueError("No voxels found for the given leg side and region.")
 
     # Get coordinates of the non-zero voxels
-    #coords = np.argwhere(combined_mask)
-    #zmin, ymin, xmin = coords.min(axis=0) - margin
-    #zmax, ymax, xmax = coords.max(axis=0) + margin  # +1 because slicing is exclusive
     indices = np.where(combined_mask)
 
     if straight_cut:
+        print("STRAIGHT_CUT (bounding box)")
         # Use full x and y extent of the leg side
         full_leg_indices = np.where(side_mask)
         x_min = np.min(full_leg_indices[0]) - margin
@@ -338,11 +339,6 @@ def get_bounding_box(split_mask, subreg_mask, leg_side, region_ids, margin=2, st
     z_max = min(subreg_mask.shape[2], z_max)
     
     return  x_min, x_max, y_min, y_max, z_min, z_max
-    #return (
-    #    slice(zmin, zmax),
-    #    slice(ymin, ymax),
-    #    slice(xmin, xmax)
-    #)
 
 def process_container(
     subject,
@@ -354,9 +350,15 @@ def process_container(
     straight_cut: bool = False 
 ):
     print("Subject:", subject)
+    print("exclude: ", exclude)
+    print("straight_cut: ", straight_cut)
+
     right_poi, left_poi, ct, splitseg, subreg = get_files_fn(container)
 
-    
+    if any(x is None for x in (right_poi, left_poi, splitseg, subreg)):
+        print("SKIP!")
+        return []
+
     splitseg.reorient_(("L", "A", "S"))
     subreg.reorient_(("L", "A", "S"))
     right_poi = right_poi.resample_from_to(subreg)
@@ -365,6 +367,7 @@ def process_container(
     # rename double POI ids
     right_poi = right_poi.map_labels(label_map_full=map_label_double, inplace=True)
     left_poi = left_poi.map_labels(label_map_full=map_label_double, inplace=True)
+    
 
     # cut segmentations to left and right
     split_arr = splitseg.get_array()
@@ -377,6 +380,7 @@ def process_container(
         for region_name, region_ids in REGIONS.items():
 
             # get bounding box for the current leg and region
+            print("straight_cut before getbb:", straight_cut)
             x_min, x_max, y_min, y_max, z_min, z_max = get_bounding_box(
                         split_arr, subreg_arr, leg_id, region_ids, straight_cut
                     )
@@ -409,7 +413,7 @@ def process_container(
                         o_shift=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
                     )
                     right_poi_cropped.filter_points_inside_shape(inplace=True)
-                    right_poi_cropped.remove_other_region_pois(right_poi_cropped, region_ids)
+                    right_poi_cropped = remove_other_region_pois(right_poi_cropped, region_ids)
                 else:
                     print("Invalid side: ", leg_side)
 
@@ -501,7 +505,7 @@ def prepare_data(
         save_path=save_path,
         rescale_zoom=rescale_zoom,
         get_files_fn=get_files_fn,
-        exclude=exclude,  # Pass None if not provided
+        exclude=exclude,  
         straight_cut=straight_cut
     )
 
