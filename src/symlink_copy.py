@@ -1,8 +1,8 @@
 import os
 
 # Setze die Pfade für dein Projekt
-source_dir = "/media/datasets/dataset-myelom/atlas/atlas/atlas"  # Der Ordner mit den aktuellen Dateien
-data_dir = "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/dataset-folder"  # Der Zielordner, in dem die Symlinks erstellt werden
+source_dir = "/media/datasets/dataset-myelom/atlas/atlas"  # Der Ordner mit den aktuellen Dateien
+data_dir = "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/atlas-dataset-folder"  # Der Zielordner, in dem die Symlinks erstellt werden
 
 # Erstelle die Hauptordner, falls sie nicht existieren
 rawdata_dir = os.path.join(data_dir, "rawdata")

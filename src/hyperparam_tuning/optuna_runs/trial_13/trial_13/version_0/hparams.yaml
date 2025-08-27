@@ -11,28 +11,28 @@ coarse_config:
     in_channels: 1
     init_features: 64
     loss_fn: WingLoss
-    lr: 0.00018546045735663613
-    n_landmarks: 15
+    lr: 3.2517206339171715e-05
+    n_landmarks: 4
     project_gt: false
   type: SADenseNet
 feature_freeze_patience: null
 loss_weights:
-- 1.4145802053941943
-- 1.7537613021015124
+- 1.614960855971161
+- 1.058493613620777
 lr: 0.001
 optimizer: AdamW
 refinement_config:
   params:
     coord_embedding_l: 64
-    dropout: 0.20205170382087054
+    dropout: 0.17381490381151454
     leg_embedding_l: 128
     loss_fn: WingLoss
-    lr: 9.361972316243672e-06
-    mlp_dim: 512
-    n_landmarks: 15
+    lr: 1.1804035597980122e-06
+    mlp_dim: 1024
+    n_landmarks: 4
     n_legs: 2
-    num_heads: 4
-    num_layers: 2
+    num_heads: 2
+    num_layers: 4
     patch_feature_l: 64
     patch_size: 16
     poi_embedding_l: 64
@@ -44,5 +44,5 @@ scheduler_config:
   params:
     end_factor: 0.1
     start_factor: 1
-    total_iters: 38
+    total_iters: 37
   type: LinearLR

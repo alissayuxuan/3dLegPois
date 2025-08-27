@@ -183,8 +183,7 @@ class PoiDataset(Dataset):
 
         return data_dict
 
-
-class FemurDataset(PoiDataset):
+"""class FemurDataset(PoiDataset):
     def __init__(
         self,
         master_df,
@@ -248,8 +247,61 @@ class FemurDataset(PoiDataset):
             include_com=include_com,
             poi_file_ending=poi_file_ending,
             iterations=iterations,
+        )"""
+
+class FemurDataset(PoiDataset):
+    def __init__(
+        self,
+        master_df,
+        input_shape= (195, 215, 150),#(170, 145, 625)
+        transforms=None,
+        flip_prob=0.5,
+        include_com=False,
+        include_poi_list=None,
+        include_leg_list=None,
+        poi_file_ending="poi.json",
+        iterations=1,
+    ):
+        super().__init__(
+            master_df,
+            poi_indices=(
+                include_poi_list
+                if include_poi_list
+                else (
+                    [
+                        11, 12, 13, 19
+                        #8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
+                    ]
+                    if include_com
+                    else [
+                        11, 12, 13, 19
+                        #8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
+                    ]
+                )
+            ),
+            include_leg_list=(
+                include_leg_list
+                if include_leg_list
+                else [
+                    1, 2
+                ]
+            ),
+            poi_flip_pairs={
+                # Middle points
+                11: 11,
+                12: 12,
+                13: 13, 
+                19: 19
+            },
+            input_shape=input_shape,
+            transforms=transforms,
+            flip_prob=flip_prob,
+            include_com=include_com,
+            poi_file_ending=poi_file_ending,
+            iterations=iterations,
         )
 
+"""
 class PatellaDataset(PoiDataset):
     def __init__(
         self,
@@ -306,12 +358,13 @@ class PatellaDataset(PoiDataset):
             poi_file_ending=poi_file_ending,
             iterations=iterations,
         )
+"""
 
-class LowerLegDataset(PoiDataset):
+class PatellaDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (150, 165, 555), #(190, 215, 1165),#(128, 128, 96), #TODO
+        input_shape= (195, 215, 280),#(70, 50, 70), #TODO
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -327,11 +380,16 @@ class LowerLegDataset(PoiDataset):
                 if include_poi_list
                 else (
                     [
-                        114, 119, 120, 121, 122, 23, 24, 25, 26, 27, 28, 29, 30, 31, 98, 99, 32
+                        8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 22, #femur
+                        1, 2, 3, 4, 5, 6, 7, #patella
+                        114, 119, 121, 23, 24, 25, 26, 27, 28, 29, 98, 99 #lower leg
+                        #1, 2, 3, 4, 5, 6, 7
                     ]
                     if include_com
                     else [
-                        114, 119, 120, 121, 122, 23, 24, 25, 26, 27, 28, 29, 30, 31, 98, 99, 32
+                        8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 22, #femur
+                        1, 2, 3, 4, 5, 6, 7, #patella
+                        114, 119, 121, 23, 24, 25, 26, 27, 28, 29, 98, 99 #lower leg
                     ]
                 )
             ),
@@ -344,27 +402,102 @@ class LowerLegDataset(PoiDataset):
             ),
             poi_flip_pairs={
                 # Middle points
+                1: 1,
+                2: 2,
+                7: 7,
+
+                10: 10,
+                18: 18,
+                20: 20,
+
                 23: 23,
-                30: 30,
                 98: 98,
                 99: 99,
                 119: 119,
-                120: 120,
-                122: 122,
+
                 # Flipped left to right
+                3: 4,
+                5: 6,
+
+                8: 9,
+                14: 21,
+                15: 22,
+                16: 17,
+
                 24: 25,
                 26: 27,
                 28: 29,
-                31: 32,
                 114: 121,
 
-
                 # Flipped right to left
+                4: 3,
+                6: 5,
+
+                9: 8,
+                21: 14,
+                22: 15,
+                17: 16,
+
                 25: 24,
                 27: 26,
                 29: 28,
+                121: 114
+            },
+            input_shape=input_shape,
+            transforms=transforms,
+            flip_prob=flip_prob,
+            include_com=include_com,
+            poi_file_ending=poi_file_ending,
+            iterations=iterations,
+        )
+
+class LowerLegDataset(PoiDataset):
+    def __init__(
+        self,
+        master_df,
+        input_shape= (195, 215, 140), #(150, 165, 555) #TODO
+        transforms=None,
+        flip_prob=0.5,
+        include_com=False,
+        include_poi_list=None,
+        include_leg_list=None,
+        poi_file_ending="poi.json",
+        iterations=1,
+    ):
+        super().__init__(
+            master_df,
+            poi_indices=(
+                include_poi_list
+                if include_poi_list
+                else (
+                    [
+                        30, 31, 32, 120
+                        #114, 119, 120, 121, 122, 23, 24, 25, 26, 27, 28, 29, 30, 31, 98, 99, 32
+                    ]
+                    if include_com
+                    else [
+                        30, 31, 32, 120
+                        #114, 119, 120, 121, 122, 23, 24, 25, 26, 27, 28, 29, 30, 31, 98, 99, 32
+                    ]
+                )
+            ),
+            include_leg_list=(
+                include_leg_list
+                if include_leg_list
+                else [
+                    1, 2
+                ]
+            ),
+            poi_flip_pairs={
+                # Middle points
+                30: 30,
+                120: 120,
+
+                # Flipped left to right
+                31: 32,
+
+                # Flipped right to left
                 32: 31,
-                121: 114,
 
             },
             input_shape=input_shape,

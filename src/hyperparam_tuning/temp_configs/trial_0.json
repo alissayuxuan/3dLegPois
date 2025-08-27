@@ -8,7 +8,7 @@
                 "type": "SADenseNet",
                 "params": {
                     "in_channels": 1,
-                    "n_landmarks": 15,
+                    "n_landmarks": 4,
                     "loss_fn": "WingLoss",
                     "feature_l": 256,
                     "init_features": 64,
@@ -20,14 +20,14 @@
                     ],
                     "bn_size": 4,
                     "dropout_prob": 0.0,
-                    "lr": 8.390648703957793e-05,
+                    "lr": 1.6719740876047022e-05,
                     "project_gt": false
                 }
             },
             "refinement_config": {
                 "type": "PatchTransformer",
                 "params": {
-                    "n_landmarks": 15,
+                    "n_landmarks": 4,
                     "n_legs": 2,
                     "patch_size": 16,
                     "poi_feature_l": 256,
@@ -37,18 +37,18 @@
                     "leg_embedding_l": 128,
                     "loss_fn": "WingLoss",
                     "warmup_epochs": -1,
-                    "mlp_dim": 1024,
-                    "num_layers": 4,
-                    "num_heads": 8,
-                    "dropout": 0.22766125852165028,
-                    "lr": 4.092859346590849e-05,
+                    "mlp_dim": 512,
+                    "num_layers": 2,
+                    "num_heads": 4,
+                    "dropout": 0.2257014904753772,
+                    "lr": 1.3052967335559466e-06,
                     "project_gt": false
                 }
             },
             "lr": 0.001,
             "loss_weights": [
-                0.9762977667517376,
-                1.109671476583304
+                0.923244007816426,
+                1.3082854506053778
             ],
             "optimizer": "AdamW",
             "scheduler_config": {
@@ -56,7 +56,7 @@
                 "params": {
                     "start_factor": 1,
                     "end_factor": 0.1,
-                    "total_iters": 41
+                    "total_iters": 38
                 }
             }
         }
@@ -82,6 +82,7 @@
         }
     ],
     "trainer_config": {
+        "precision": 16,
         "accelerator": "gpu",
         "max_epochs": 200,
         "log_every_n_steps": 10,
@@ -91,7 +92,7 @@
         "type": "FemurDataModule",
         "region": "Femur",
         "params": {
-            "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/cutouts_all/femur/master_df.csv",
+            "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/fov_cut/femur/master_df.csv",
             "train_subjects": [
                 "CTFU00099",
                 "CTFU04045",
@@ -111,9 +112,9 @@
                 "MM00233"
             ],
             "input_shape": [
-                170,
-                145,
-                625
+                195,
+                215,
+                150
             ],
             "flip_prob": 0.5,
             "transform_config": {

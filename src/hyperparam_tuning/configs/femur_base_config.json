@@ -1,5 +1,5 @@
 {
-    "path": "experiments/experiment_logs/experiment_dir/femur-all_pois/no_freeze",
+    "path": "experiments/experiment_logs/hyperparam_tune/femur-fov_cut/",
     "name": "SA-DenseNet-PatchTransformer",
     "module_config": {
         "type": "PoiPredictionModule",
@@ -8,7 +8,7 @@
                 "type": "SADenseNet",
                 "params": {
                     "in_channels": 1,
-                    "n_landmarks": 15,
+                    "n_landmarks": 4,
                     "loss_fn": "WingLoss",
                     "feature_l": 256,
                     "init_features": 64,
@@ -27,7 +27,7 @@
             "refinement_config": {
                 "type": "PatchTransformer",
                 "params": {
-                    "n_landmarks": 15,
+                    "n_landmarks": 4,
                     "n_legs": 2,
                     "patch_size": 16,
                     "poi_feature_l": 256,
@@ -92,7 +92,7 @@
         "type": "FemurDataModule",
         "region": "Femur",
         "params": {
-            "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/cutouts_all/femur/master_df.csv",
+            "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/fov_cut/femur/master_df.csv",
             "train_subjects": [
                 "CTFU00099",
                 "CTFU04045",
@@ -112,9 +112,7 @@
                 "MM00233"
             ],
             "input_shape": [
-                170,
-                145,
-                625
+                195, 215, 150
             ],
             "flip_prob": 0.5,
             "transform_config": {

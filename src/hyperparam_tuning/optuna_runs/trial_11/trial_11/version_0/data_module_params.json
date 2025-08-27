@@ -1,6 +1,6 @@
 {
     "dataset": "Femur",
-    "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/cutouts_all/femur/master_df.csv",
+    "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder/fov_cut/femur/master_df.csv",
     "train_subjects": [
         "CTFU00099",
         "CTFU04045",
@@ -20,9 +20,9 @@
         "MM00233"
     ],
     "input_shape": [
-        170,
-        145,
-        625
+        195,
+        215,
+        150
     ],
     "flip_prob": 0.5,
     "transform_config": {

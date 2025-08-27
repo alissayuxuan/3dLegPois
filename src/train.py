@@ -10,7 +10,7 @@ import json
 import os
 
 import pytorch_lightning as pl
-import torch
+import torch                                                        
 
 from modules.PoiDataModules import create_data_module
 from modules.PoiModule import PoiPredictionModule
