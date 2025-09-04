@@ -189,6 +189,7 @@ def apply_elastic_deformation(splitseg, subreg, ct, right_poi, left_poi,
 
 if __name__ == "__main__":
 
+    """
     splitseg_path = "data_preprocessing/cutouts-folder_test/side_cut/CTFU00099/left/split.nii.gz"
     subreg_path = "data_preprocessing/cutouts-folder_test/side_cut/CTFU00099/left/subreg.nii.gz"
 
@@ -210,7 +211,6 @@ if __name__ == "__main__":
                 splitseg_path=splitseg_path,
                 subreg_path=subreg_path,
                 poi_path=poi_path,
-                poi_path=poi_path,
                 save_dir=save_dir,
                 control_points=cp,  # Mehr Kontrollpunkte für feinere Deformation
                 sigma=sigma,  # Deformationsstärke
@@ -221,3 +221,4 @@ if __name__ == "__main__":
             
         except Exception as e:
             print(f"Error: {e}")
+    """

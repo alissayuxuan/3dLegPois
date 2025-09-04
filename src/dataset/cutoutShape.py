@@ -9,7 +9,7 @@ def find_max_shape():
     Findet die maximale Form (Shape) aller 'vertseg.nii.gz' Dateien in den Unterordnern von '/cutouts'.
     Gibt die maximale Form als Tuple zurück.
     """
-    base_dir = 'data_preprocessing/cutouts-folder/fov_cut/lowerleg'  # Basisordner anpassen, falls nötig
+    base_dir = 'data_preprocessing/cutouts-folder-deform/fov_cut/patella'  # Basisordner anpassen, falls nötig
 
     max_shape = None
 

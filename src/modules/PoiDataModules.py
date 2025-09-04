@@ -6,25 +6,11 @@ from typing import TypeVar
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-#from BIDS import BIDS_Global_info
-from TPTBox import BIDS_Global_info
 
-
-from pqdm.processes import pqdm
 from torch.utils.data import DataLoader
 
 from dataset.dataset import FemurDataset, PatellaDataset, LowerLegDataset, PoiDataset
 from transforms.transforms import create_transform
-"""
-from utils.dataloading_utils import (
-    get_ct,
-    get_files,
-    get_gruber_poi,
-    get_subreg,
-    get_vertseg,
-    process_container,
-)
-"""
 
 PoiType = TypeVar("PoiType", bound=PoiDataset)
 
@@ -37,7 +23,7 @@ class POIDataModule(pl.LightningDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (190, 215, 1165),
+        input_shape: tuple = (190, 213, 280),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -65,33 +51,6 @@ class POIDataModule(pl.LightningDataModule):
         self.transform_config = transform_config
         self.surface_erosion_iterations = surface_erosion_iterations
         self.save_hyperparameters()
-
-    """
-    def prepare_data(
-        self,
-        bids_surgery_info: BIDS_Global_info,
-        save_path: str,
-        get_files: callable,
-        rescale_zoom: tuple | None = None,
-    ):
-        master = []
-        partial_process_container = partial(
-            process_container,
-            save_path=save_path,
-            rescale_zoom=rescale_zoom,
-            get_files=get_files,
-        )
-        master = pqdm(
-            bids_surgery_info.enumerate_subjects(),
-            partial_process_container,
-            n_jobs=8,
-            argument_type="args",
-            exception_behaviour="immediate",
-        )
-        master = [item for sublist in master for item in sublist]
-        master_df = pd.DataFrame(master)
-        master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
-    """
 
     def setup(self, stage=None):
         self.master_df = pd.read_csv(self.master_df_path)
@@ -249,7 +208,7 @@ class FemurDataModule(POIDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (170, 145, 625),#(190, 215, 1165),
+        input_shape: tuple = (190, 213, 147),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -285,7 +244,7 @@ class PatellaDataModule(POIDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (70, 45, 70), #(190, 215, 1165),#(128, 128, 96),
+        input_shape: tuple = (190, 213, 280),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -321,7 +280,7 @@ class LowerLegDataModule(POIDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (150, 165, 550),#(190, 215, 1165),#(128, 128, 96),
+        input_shape: tuple = (190, 213, 136), 
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -349,24 +308,7 @@ class LowerLegDataModule(POIDataModule):
             poi_file_ending=poi_file_ending,
             surface_erosion_iterations=surface_erosion_iterations,
         )
-    """
-    def prepare_data(
-        self,
-        bids_surgery_info: BIDS_Global_info,
-        save_path: str,
-        rescale_zoom: tuple | None = None,
-    ):
-        gruber_get_files = partial(
-            get_files,
-            get_poi=get_gruber_poi,
-            get_ct=get_ct,
-            get_subreg=get_subreg,
-            get_vertseg=get_vertseg,
-        )
-        super().prepare_data(
-            bids_surgery_info, save_path, gruber_get_files, rescale_zoom
-        )
-    """
+
 
 def create_data_module(config):
     module_type = config["type"]
@@ -379,24 +321,3 @@ def create_data_module(config):
         return LowerLegDataModule(**module_params)
     else:
         raise ValueError(f"Data module type {module_type} not recognized")
-
-    
-
-if __name__ == "__main__":
-    bids_surgery_poi = BIDS_Global_info(
-        ["/home/daniel/Data/Implants/dataset-implants"], additional_key=["seq"]
-    )
-    save_path = "/home/daniel/Data/Implants/cutouts_scale-1-1-1"
-
-    data_module = FemurDataModule()#ImplantsDataModule()
-    data_module.prepare_data(bids_surgery_poi, save_path, rescale_zoom=(1, 1, 1))
-
-    bids_surgery_poi = BIDS_Global_info(
-        ["/home/daniel/Data/Gruber/dataset-poi-gruber"],
-        parents=["rawdata", "derivatives_seg_new"],
-        additional_key=["seq", "snapshot", "ref"],
-    )
-    save_path = "/home/daniel/Data/Gruber/cutouts_scale-1-1-1"
-
-    data_module = PatellaDataModule() #GruberDataModule()
-    data_module.prepare_data(bids_surgery_poi, save_path, rescale_zoom=(1, 1, 1))

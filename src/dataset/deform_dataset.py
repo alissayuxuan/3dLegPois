@@ -139,12 +139,6 @@ def create_deformed_filename(original_path, new_subject, session):
     
     new_filename = '_'.join(new_parts)
     
-    if new_filename.endswith('.nii.gz'):
-        new_filename = new_filename.replace('.niingz', '_deformed.nii.gz')
-    elif new_filename.endswith('.json'):
-        new_filename = new_filename.replace('.json', '_deformed.json')
-    else:
-        new_filename = new_filename + "_deformed"
 
     return new_filename 
     # sub-CTFU04045_ses-20220303_sequ-204_cms_poi
@@ -215,9 +209,11 @@ def perform_elastic_deform(subject, container, get_data_files, data_path, contro
         left_poi_deformed.to_global().save_mrk(left_poi_deformed_path)
 
 
+
 if __name__ == "__main__":
 
     data_path = "data_preprocessing/atlas-dataset-folder-deform"
+
 
     bids_global_info = BIDS_Global_info(
         datasets=[data_path], parents=["rawdata", "derivatives"]

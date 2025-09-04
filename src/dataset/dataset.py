@@ -100,7 +100,6 @@ class PoiDataset(Dataset):
 
         # Get the ground truth POIs
         poi, missing_pois = get_gt_pois(poi, leg, self.poi_indices)
-        print(f"Missing POIs for subject {subject}, leg {leg}: {missing_pois}")
 
         poi_indices = torch.tensor(self.poi_indices)
 
@@ -253,7 +252,7 @@ class FemurDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (195, 215, 150),#(170, 145, 625)
+        input_shape= (190, 213, 147),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -364,7 +363,7 @@ class PatellaDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (195, 215, 280),#(70, 50, 70), #TODO
+        input_shape= (190, 213, 280),#(70, 50, 70), 
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -455,7 +454,7 @@ class LowerLegDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (195, 215, 140), #(150, 165, 555) #TODO
+        input_shape= (190, 213, 136), #(150, 165, 555) 
         transforms=None,
         flip_prob=0.5,
         include_com=False,

@@ -30,8 +30,6 @@ def get_gt_pois(poi, leg, poi_indices):
     Returns:
         torch.Tensor: The POI coordinates as a tensor.
     """
-    print("[DEBUG] POI keys:", poi.keys())
-    print("[DEBUG] Suche nach:", [(leg, p_idx) for p_idx in poi_indices])
 
     coords = [
         (
