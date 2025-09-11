@@ -1,0 +1,415 @@
+{
+    "path": "hyperparam_tuning/optuna_runs/optuna_runs_lowerleg/trial_15",
+    "name": "trial_15",
+    "module_config": {
+        "type": "PoiPredictionModule",
+        "params": {
+            "coarse_config": {
+                "type": "SADenseNet",
+                "params": {
+                    "in_channels": 1,
+                    "n_landmarks": 4,
+                    "loss_fn": "WingLoss",
+                    "feature_l": 256,
+                    "init_features": 64,
+                    "growth_rate": 32,
+                    "block_config": [
+                        6,
+                        12,
+                        12
+                    ],
+                    "bn_size": 4,
+                    "dropout_prob": 0.0,
+                    "lr": 0.00013270063884036518,
+                    "project_gt": false
+                }
+            },
+            "refinement_config": {
+                "type": "PatchTransformer",
+                "params": {
+                    "n_landmarks": 4,
+                    "n_legs": 2,
+                    "patch_size": 16,
+                    "poi_feature_l": 256,
+                    "patch_feature_l": 64,
+                    "coord_embedding_l": 64,
+                    "poi_embedding_l": 64,
+                    "leg_embedding_l": 128,
+                    "loss_fn": "WingLoss",
+                    "warmup_epochs": -1,
+                    "mlp_dim": 512,
+                    "num_layers": 2,
+                    "num_heads": 4,
+                    "dropout": 0.0,
+                    "lr": 6.914461061717966e-06,
+                    "project_gt": false
+                }
+            },
+            "lr": 0.0014440455854142272,
+            "loss_weights": [
+                1,
+                1
+            ],
+            "optimizer": "AdamW",
+            "scheduler_config": {
+                "type": "LinearLR",
+                "params": {
+                    "start_factor": 1,
+                    "end_factor": 0.1,
+                    "total_iters": 20
+                }
+            }
+        }
+    },
+    "callbacks_config": [
+        {
+            "type": "ModelCheckpoint",
+            "params": {
+                "monitor": "fine_mean_distance_masked_val",
+                "filename": "sad-pt-{epoch:02d}-{fine_mean_distance_val:.2f}",
+                "save_top_k": 3,
+                "mode": "min"
+            }
+        },
+        {
+            "type": "EarlyStopping",
+            "params": {
+                "monitor": "fine_mean_distance_val",
+                "patience": 20,
+                "verbose": true,
+                "mode": "min"
+            }
+        }
+    ],
+    "trainer_config": {
+        "accelerator": "gpu",
+        "max_epochs": 40,
+        "log_every_n_steps": 10,
+        "accumulate_grad_batches": 2
+    },
+    "data_module_config": {
+        "type": "LowerLegDataModule",
+        "region": "LowerLeg",
+        "params": {
+            "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutout-folder/cutouts-registration-1.5_zoom/lowerleg/master_df.csv",
+            "train_subjects": [
+                "CTFU04695",
+                "MM00065",
+                "MM00069",
+                "MM00074",
+                "CTFU04656",
+                "MM00241",
+                "CTFU04045",
+                "MM00054",
+                "MM00079",
+                "MM00239",
+                "MM00038",
+                "MM00182",
+                "MM00121",
+                "MM00163",
+                "MM00024",
+                "MM00216",
+                "MM00006",
+                "MM00186",
+                "MM00031",
+                "MM00137",
+                "MM00123",
+                "MM00160",
+                "CTFU02113",
+                "MM00048",
+                "MM00250",
+                "MM00049",
+                "MM00233",
+                "MM00164",
+                "MM00037",
+                "MM00017",
+                "MM00111",
+                "CTFU02101",
+                "CTFU02001",
+                "MM00108",
+                "MM00214",
+                "MM00033",
+                "CTFU00931",
+                "CTFU04060",
+                "MM00171",
+                "MM00148",
+                "MM00209",
+                "MM00059",
+                "MM00040",
+                "MM00224",
+                "MM00025",
+                "MM00072",
+                "CTFU00381",
+                "MM00217",
+                "MM00106",
+                "MM00043",
+                "MM00143",
+                "MM00050",
+                "MM00176",
+                "MM00027",
+                "MM00089",
+                "MM00247",
+                "MM00052",
+                "MM00071",
+                "MM00107",
+                "MM00154",
+                "MM00001",
+                "MM00183",
+                "MM00064",
+                "MM00053",
+                "MM00190",
+                "MM00087",
+                "CTFU04842",
+                "MM00191",
+                "MM00138",
+                "MM00189",
+                "MM00044",
+                "CTFU02005",
+                "CTFU04547",
+                "MM00022",
+                "MM00104",
+                "MM00042",
+                "MM00019",
+                "CTFU02114",
+                "MM00134",
+                "CTFU03205",
+                "MM00126",
+                "MM00036",
+                "MM00013",
+                "MM00159",
+                "MM00210",
+                "MM00090",
+                "MM00150",
+                "MM00094",
+                "CTFU05100",
+                "MM00206",
+                "MM00133",
+                "CTFU02074",
+                "MM00161",
+                "MM00091",
+                "CTFU02109",
+                "CTFU01089",
+                "CTFU04693",
+                "MM00055",
+                "MM00095",
+                "MM00014",
+                "MM00112",
+                "MM00140",
+                "MM00173",
+                "MM00110",
+                "MM00141",
+                "MM00152",
+                "MM00212",
+                "MM00034",
+                "MM00142",
+                "MM00080",
+                "MM00041",
+                "MM00222",
+                "MM00129",
+                "MM00093",
+                "MM00240",
+                "MM00246",
+                "CTFU01008",
+                "MM00016",
+                "MM00169",
+                "MM00058",
+                "CTFU00926",
+                "CTFU00354",
+                "MM00100",
+                "MM00187",
+                "MM00157",
+                "MM00061",
+                "MM00081",
+                "MM00082",
+                "MM00253",
+                "MM00235",
+                "CTFU02093",
+                "CTFU01114",
+                "MM00166",
+                "MM00105",
+                "MM00229",
+                "MM00179",
+                "MM00132",
+                "CTFU02080",
+                "MM00021",
+                "MM00068",
+                "MM00015",
+                "CTFU03251",
+                "MM00096",
+                "MM00035",
+                "MM00018",
+                "MM00201",
+                "MM00083",
+                "MM00203",
+                "MM00249",
+                "MM00120",
+                "MM00113",
+                "MM00073",
+                "MM00070",
+                "MM00062",
+                "MM00237",
+                "MM00151",
+                "MM00122",
+                "MM00252",
+                "MM00167",
+                "MM00008",
+                "MM00086",
+                "CTFU05099",
+                "CTFU04672",
+                "MM00066",
+                "MM00127"
+            ],
+            "val_subjects": [
+                "CTFU04072",
+                "CTFU04731",
+                "MM00177",
+                "MM00168",
+                "CTFU02116",
+                "CTFU04023",
+                "MM00204",
+                "MM00221",
+                "MM00102",
+                "MM00101",
+                "MM00056",
+                "MM00029",
+                "MM00242",
+                "MM00046",
+                "CTFU00755",
+                "CTFU02065",
+                "MM00195",
+                "MM00156",
+                "MM00228",
+                "CTFU05372",
+                "MM00146",
+                "MM00030",
+                "ctsr00714",
+                "MM00047",
+                "MM00077",
+                "MM00131",
+                "CTFU03866",
+                "MM00234",
+                "CTFU02087",
+                "CTFU03127",
+                "MM00078",
+                "MM00245",
+                "MM00244",
+                "MM00165",
+                "MM00135"
+            ],
+            "test_subjects": [
+                "MM00117",
+                "MM00149",
+                "MM00114",
+                "MM00198",
+                "MM00009",
+                "CTFU00965",
+                "MM00172",
+                "MM00092",
+                "MM00099",
+                "CTFU01051",
+                "MM00097",
+                "MM00020",
+                "MM00076",
+                "MM00225",
+                "MM00170",
+                "MM00155",
+                "MM00227",
+                "MM00144",
+                "MM00011",
+                "MM00028",
+                "MM00005",
+                "MM00215",
+                "CTFU05303",
+                "MM00254",
+                "MM00213",
+                "MM00103",
+                "MM00032",
+                "MM00238",
+                "MM00226",
+                "MM00003",
+                "MM00174",
+                "MM00051",
+                "CTFU02072",
+                "MM00004",
+                "MM00251",
+                "MM00231"
+            ],
+            "input_shape": [
+                131,
+                131,
+                76
+            ],
+            "flip_prob": 0.5,
+            "transform_config": {
+                "type": "LandmarksRandAffine",
+                "params": {
+                    "prob": 0.8,
+                    "rotate_range": [
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ],
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ],
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ]
+                    ],
+                    "shear_range": [
+                        [
+                            -0.1,
+                            0.1
+                        ],
+                        [
+                            -0.1,
+                            0.1
+                        ],
+                        [
+                            -0.1,
+                            0.1
+                        ]
+                    ],
+                    "translate_range": [
+                        [
+                            -5,
+                            5
+                        ],
+                        [
+                            -5,
+                            5
+                        ],
+                        [
+                            -5,
+                            5
+                        ]
+                    ],
+                    "scale_range": [
+                        [
+                            -0.2,
+                            0.1
+                        ],
+                        [
+                            -0.2,
+                            0.1
+                        ],
+                        [
+                            -0.2,
+                            0.1
+                        ]
+                    ],
+                    "device": "cpu"
+                }
+            },
+            "include_com": false,
+            "batch_size": 1,
+            "num_workers": 3,
+            "include_leg_list": [
+                1,
+                2
+            ]
+        }
+    }
+}

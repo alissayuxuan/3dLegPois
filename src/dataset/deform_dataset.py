@@ -160,7 +160,7 @@ def create_deformed_save_path(original_filename, new_subject, session, data_path
 
     return save_path
 
-def perform_elastic_deform(subject, container, get_data_files, data_path, control_points=10, sigma=3, deform_iterations=2):
+def perform_elastic_deform(subject, container, get_data_files, data_path, control_points=10, sigma=3, deform_iterations=2, count_idx=0):
 
     # Get data files and their paths
     (right_poi, right_poi_path), (left_poi, left_poi_path), (ct, ct_path), \
@@ -191,7 +191,7 @@ def perform_elastic_deform(subject, container, get_data_files, data_path, contro
             sigma
         )
 
-        new_subject = f"sub-D{subject.replace('sub-', '')}{iter}"
+        new_subject = f"sub-D{subject.replace('sub-', '')}{count_idx + iter}"
 
         ct_deformed_path = create_deformed_save_path(ct_path, new_subject, session, data_path, is_rawdata=True)
         splitseg_deformed_path = create_deformed_save_path(splitseg_path, new_subject, session, data_path, is_rawdata=False)
@@ -212,7 +212,7 @@ def perform_elastic_deform(subject, container, get_data_files, data_path, contro
 
 if __name__ == "__main__":
 
-    data_path = "data_preprocessing/atlas-dataset-folder-deform"
+    data_path = "data_preprocessing/dataset-folder/atlas-dataset-folder-deform_more"
 
 
     bids_global_info = BIDS_Global_info(
@@ -230,7 +230,16 @@ if __name__ == "__main__":
 
     for subject, container in bids_global_info.enumerate_subjects():
         perform_elastic_deform(subject, container, get_data_files, data_path, 
-                               control_points=10, sigma=3, deform_iterations=2)
+                               control_points=10, sigma=4, deform_iterations=2, count_idx=2)
+
+        perform_elastic_deform(subject, container, get_data_files, data_path, 
+                               control_points=8, sigma=3, deform_iterations=2, count_idx=4)
+        
+        perform_elastic_deform(subject, container, get_data_files, data_path, 
+                               control_points=8, sigma=4, deform_iterations=2, count_idx=6)
+        
+        perform_elastic_deform(subject, container, get_data_files, data_path, 
+                               control_points=8, sigma=4, deform_iterations=2, count_idx=8)
         
 
 

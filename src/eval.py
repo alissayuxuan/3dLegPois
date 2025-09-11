@@ -1,4 +1,3 @@
-#Alissa
 import sys
 from pathlib import Path
 
@@ -42,33 +41,39 @@ def load_model_from_checkpoint(checkpoint_path):
 
 def np_to_ctd(
     t,
-    leg,
+    vertebra,
     origin,
     rotation,
     idx_list=None,
     shape=(128, 128, 96),
     zoom=(1, 1, 1),
     offset=(0, 0, 0),
+    orientation=None,
 ):
     ctd = {}
     for i, coords in enumerate(t):
         coords = np.array(coords).astype(float) - np.array(offset).astype(float)
         coords = (coords[0], coords[1], coords[2])
         if idx_list is None:
-            ctd[leg, i] = coords
+            ctd[vertebra, i] = coords
         elif i < len(idx_list):
-            ctd[leg, idx_list[i]] = coords
+            ctd[vertebra, idx_list[i]] = coords
+
+    if orientation is None:
+        raise ValueError("You must provide the orientation of the input POI.")
 
     ctd = POI(
         centroids=ctd,
-        orientation=("L", "A", "S"),
+        orientation=orientation,
         zoom=zoom,
         shape=shape,
         origin=origin,
         rotation=rotation,
     )
-    return ctd
 
+    ctd.reorient_(axcodes_to=("L", "A", "S"), verbose=False).rescale_((1, 1, 1), verbose=False)
+
+    return ctd
 
 def create_prediction_poi_files(
     data_module_save_path,
@@ -148,22 +153,19 @@ def create_prediction_poi_files(
             target_indices_batch,
             poi_path_batch,
             offset_batch,
-            loss_mask_batch, #Alissa
+            loss_mask_batch, 
         ):
             
-            #Alissa: Filter nur gültige POIs (mask == True)
-            #mask = loss_mask_batch.astype(bool)
-            print(f"preds.shape: {preds.shape}, mask.shape: {mask.shape}")
-
             preds = preds[mask]
             indices = indices[mask]
 
-            # Open the old POI file to get the origin and rotation
+            # Open the old POI file to get the origin, rotation, ...
             ctd = POI.load(poi_path)
             origin = ctd.origin
             rotation = ctd.rotation
             shape = ctd.shape
             zoom = ctd.zoom
+            orientation = ctd.orientation
 
             # Create the new POI file
             ctd = np_to_ctd(
@@ -175,6 +177,7 @@ def create_prediction_poi_files(
                 shape=shape,
                 zoom=zoom,
                 offset=offset,
+                orientation=orientation
             )
 
             if save_in_dir:
@@ -197,29 +200,27 @@ def create_prediction_poi_files(
 
             ctd.save(ctd_save_path, verbose=False)
     
-            # === (1) Speichere globale Prediction-POIs ===
+            # save global POIs
             if not os.path.exists(ctd_save_path):
                 print(f"⚠️ Prediction file not found: {ctd_save_path}")
                 continue
             ctd_global_save_path = ctd_save_path.replace("_pred.json", "_pred_global.json")
             POI.load(ctd_save_path).to_global().save_mrk(ctd_global_save_path)
 
-            # === (2) Speichere GT-POI-Datei ===
+            # save GT POIs
             gt_poi = POI.load(poi_path).extract_region(leg)
             gt_save_path = ctd_save_path.replace("_pred.json", "_gt.json")
             gt_poi.save(gt_save_path)
-
-            # === (3) Speichere globale GT-POIs ===
             gt_global_save_path = gt_save_path.replace("_gt.json", "_gt_global.json")
             gt_poi.to_global().save_mrk(gt_global_save_path)
 
-            # === (4) Kopiere Segmentationsmaske ===
+            # copy segmentation masks
             seg_leg_path = poi_path.replace("poi.json", "split.nii.gz")
             seg_save_path = ctd_save_path.replace("_pred.json", "_seg.nii.gz")
             if os.path.exists(seg_leg_path):
                 shutil.copy(seg_leg_path, seg_save_path)
             else:
-                print(f"⚠️ Segmentation file not found: {seg_leg_path}")
+                print(f"Segmentation file not found: {seg_leg_path}")
 
             if return_paths:
                 poi_paths_dict[sub, leg] = {
@@ -230,149 +231,6 @@ def create_prediction_poi_files(
 
     if return_paths:
         return poi_paths_dict
-    """
-            if return_paths:
-                poi_paths_dict[sub, leg] = {
-                    "gt": poi_path,
-                    "pred": ctd_save_path,
-                    "seg_leg": poi_path.replace("poi.json", "split.nii.gz"),
-                }
-
-    if return_paths:
-        return poi_paths_dict
-    """
-
-
-def create_self_training_pois(
-    data_module_save_path,
-    checkpoint_path,
-    poi_file_ending,
-    split="val",
-    thre=3.0,
-):
-    new_bad_pois = {
-        "subject": [],
-        "vertebra": [],
-        "bad_poi_list": [],
-    }
-
-    # Assert that the poi_file_ending is a json file
-    if not poi_file_ending.endswith(".json"):
-        raise ValueError("The poi_file_ending must be a json file")
-
-    data_module = load_data_module_from_config(data_module_save_path)
-    data_module.setup()
-
-    # Load the checkpoint
-    poi_module = PoiPredictionModule.load_from_checkpoint(checkpoint_path)
-
-    # Set the model to evaluation mode
-    poi_module.eval()
-
-    if split == "val":
-        val_dl = data_module.val_dataloader()
-    elif split == "test":
-        val_dl = data_module.test_dataloader()
-    else:
-        raise ValueError(f"Invalid split: {split}")
-
-    for batch in val_dl:
-        # Bring all tensors to device
-        batch = {
-            k: v.to(poi_module.device) if isinstance(v, torch.Tensor) else v
-            for k, v in batch.items()
-        }
-        batch = poi_module(batch)
-
-        # Get target, projected refined_preds, target_indices, loss_mask, offset
-        # and poi_path
-        subject_batch = batch["subject"]
-        vertebra_batch = batch["vertebra"]
-        refined_preds_batch = batch["refined_preds"]
-        refined_preds_projected_batch, _ = surface_project_coords(
-            refined_preds_batch, batch["surface"]
-        )
-        target_indices_batch = batch["target_indices"]
-        offset_batch = batch["offset"]
-        poi_path_batch = batch["poi_path"]
-        loss_mask_batch = batch["loss_mask"]
-        target_batch = batch["target"]
-        target_projected_batch, _ = surface_project_coords(
-            target_batch, batch["surface"]
-        )
-
-        # Detach all tensors
-        vertebra_batch = vertebra_batch.detach().cpu().numpy()
-        refined_preds_batch = refined_preds_batch.detach().cpu().numpy()
-        refined_preds_projected_batch = (
-            refined_preds_projected_batch.detach().cpu().numpy()
-        )
-        target_indices_batch = target_indices_batch.detach().cpu().numpy()
-        offset_batch = offset_batch.detach().cpu().numpy()
-        loss_mask_batch = loss_mask_batch.detach().cpu().numpy()
-        target_projected_batch = target_projected_batch.detach().cpu().numpy()
-
-        for sub, vert, preds, indices, poi_path, offset, loss_mask, target in zip(
-            subject_batch,
-            vertebra_batch,
-            refined_preds_projected_batch,
-            target_indices_batch,
-            poi_path_batch,
-            offset_batch,
-            loss_mask_batch,
-            target_projected_batch,
-        ):
-            # Open the old POI file to get the origin and rotation
-            ctd = POI.load(poi_path)
-            origin = ctd.origin
-            rotation = ctd.rotation
-            shape = ctd.shape
-            zoom = ctd.zoom
-
-            # Where the loss mask is false (i.e. a bad gt), we use the predicted POI
-            # as the new POI
-            pred_mask = np.logical_not(loss_mask)
-
-            # If the distance between predicted and target is larger than the threshold,
-            # we mark the POI as bad
-            bad_poi_idx = np.where(np.linalg.norm(preds - target, axis=1) > thre)[0]
-            bad_poi_indices = indices[bad_poi_idx]
-
-            # Create the target, use preds where pred_mask and else use target
-            new_target = np.where(pred_mask[:, None], preds, target)
-
-            # Create the new POI file
-            ctd = np_to_ctd(
-                new_target,
-                vert,
-                origin,
-                rotation,
-                idx_list=indices,
-                shape=shape,
-                zoom=zoom,
-                offset=offset,
-            )
-
-            ctd_save_path = poi_path.replace(
-                data_module.poi_file_ending, poi_file_ending
-            )
-            # Make sure we do not overwrite the original POI file
-            if ctd_save_path == poi_path:
-                # Print warning
-                print(
-                    f"Warning: The save path {ctd_save_path} is "
-                    "the same as the original  POI path. "
-                    "The new file will be saved with the ending '_pred.json'"
-                )
-                ctd_save_path = poi_path.replace(".json", "_pred.json")
-
-            ctd.save(ctd_save_path, verbose=False)
-
-            new_bad_pois["subject"].append(sub)
-            new_bad_pois["vertebra"].append(vert)
-            new_bad_pois["bad_poi_list"].append(bad_poi_indices)
-
-    return new_bad_pois
 
 def run_predictions(
     data_module_save_path,
@@ -386,6 +244,7 @@ def run_predictions(
         alternative_poi_ending=alternative_poi_ending,
     )
     data_module.setup()
+    zoom = getattr(data_module, 'zoom', (1, 1, 1))
 
     # Load the checkpoint
     poi_module = PoiPredictionModule.load_from_checkpoint(checkpoint_path)
@@ -414,6 +273,7 @@ def run_predictions(
         "coarse_proj_dist": [],
         "refined_proj_dist": [],
         "loss_mask": [],
+        "zoom": []
     }
 
     for batch in val_dl:
@@ -515,6 +375,7 @@ def run_predictions(
                 pred_dict["coarse_proj_dist"].append(c_proj_dist)
                 pred_dict["refined_proj_dist"].append(r_proj_dist)
                 pred_dict["loss_mask"].append(l)
+                pred_dict["zoom"].append(zoom)
 
     return pred_dict
 
@@ -529,22 +390,22 @@ def create_prediction_df(
     )
     # Calculate distances between target and predicted POIs
     pred_dict["coarse_error"] = [
-        np.linalg.norm(np.array(t) - np.array(c))
-        for t, c in zip(pred_dict["target"], pred_dict["coarse"])
+        np.linalg.norm((np.array(t) - np.array(c)) * np.array(zoom)) 
+        for t, c, zoom in zip(pred_dict["target"], pred_dict["coarse"], pred_dict["zoom"])
     ]
     pred_dict["refined_error"] = [
-        np.linalg.norm(np.array(t) - np.array(r))
-        for t, r in zip(pred_dict["target"], pred_dict["refined"])
+        np.linalg.norm((np.array(t) - np.array(r)) * np.array(zoom))
+        for t, r, zoom in zip(pred_dict["target"], pred_dict["refined"], pred_dict["zoom"])
     ]
 
     # Calculate distances between target and projected POIs
     pred_dict["coarse_proj_error"] = [
-        np.linalg.norm(np.array(t) - np.array(c))
-        for t, c in zip(pred_dict["target"], pred_dict["coarse_proj"])
+        np.linalg.norm((np.array(t) - np.array(c)) * zoom)
+        for t, c, zoom in zip(pred_dict["target"], pred_dict["coarse_proj"], pred_dict["zoom"])
     ]
     pred_dict["refined_proj_error"] = [
-        np.linalg.norm(np.array(t) - np.array(r))
-        for t, r in zip(pred_dict["target"], pred_dict["refined_proj"])
+        np.linalg.norm((np.array(t) - np.array(r)) * zoom)
+        for t, r, zoom in zip(pred_dict["target"], pred_dict["refined_proj"], pred_dict["zoom"])
     ]
 
     # Create DataFrame
@@ -578,7 +439,7 @@ def compute_overall_metrics(df):
 
 def compute_poi_wise_metrics(df):
     # Group by poi_idx and calculate metrics for refined_proj_error
-    grouped = df.groupby("poi_idx")["refined_proj_error"]
+    grouped = df.groupby("poi_idx")["refined_error"]
     metrics_df = grouped.apply(lambda x: calculate_metrics(x)).apply(pd.Series)
     metrics_df.columns = ["Mean Error", "Median Error", "MSE", "Accuracy", "Max Error"]
 
@@ -586,7 +447,7 @@ def compute_poi_wise_metrics(df):
 
 def compute_leg_wise_metrics(df):
     # Group by leg and calculate metrics for refined_proj_error
-    grouped = df.groupby("leg")["refined_proj_error"]
+    grouped = df.groupby("leg")["refined_error"]
     metrics_df = grouped.apply(lambda x: calculate_metrics(x)).apply(pd.Series)
     metrics_df.columns = ["Mean Error", "Median Error", "MSE", "Accuracy", "Max Error"]
 
@@ -594,7 +455,7 @@ def compute_leg_wise_metrics(df):
 
 def compute_sub_wise_metrics(df):
     # Group by vertebra and calculate metrics for refined_proj_error
-    grouped = df.groupby("subject")["refined_proj_error"]
+    grouped = df.groupby("subject")["refined_error"]
     metrics_df = grouped.apply(lambda x: calculate_metrics(x)).apply(pd.Series)
     metrics_df.columns = ["Mean Error", "Median Error", "MSE", "Accuracy", "Max Error"]
 
@@ -612,8 +473,8 @@ def filter_high_error_pois(df: pd.DataFrame, threshold: float) -> pd.DataFrame:
     Rückgabe:
     pd.DataFrame: Gefiltertes DataFrame mit den Spalten subject, leg und poi_idx.
     """
-    filtered_df = df[df['refined_proj_error'] > threshold]
-    return filtered_df[['subject', 'leg', 'poi_idx', 'refined_proj_error']].reset_index(drop=True)
+    filtered_df = df[df['refined_error'] > threshold]
+    return filtered_df[['subject', 'leg', 'poi_idx', 'refined_error']].reset_index(drop=True)
 
 
 if __name__ == "__main__":
@@ -693,17 +554,5 @@ if __name__ == "__main__":
         return_paths=True, 
         project=False  
     )
-
-    # Copy ground truth POIs to output directory for comparison
-    """for (sub, leg), paths in poi_paths_dict.items():
-        gt_poi = POI.load(paths["gt"])
-        gt_poi = gt_poi.extract_region(leg)  # Extract region for the specific leg
-        gt_save_path = os.path.join(prediction_files_path, f"{sub}_{leg}_gt.json")
-        gt_poi.save(gt_save_path)
-
-        seg_path = paths["seg_leg"]
-        seg_save_path = os.path.join(prediction_files_path, f"{sub}_{leg}_seg.nii.gz")
-        shutil.copy(seg_path, seg_save_path)"""
-
 
     print(f"Saved predictions and ground truths to: {prediction_files_path}")

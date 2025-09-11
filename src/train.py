@@ -55,16 +55,13 @@ def run_experiment(experiment_config):
     data_module.setup()
     poi_module = PoiPredictionModule(**poi_module_config["params"])
 
-    # === 1. Create logger early and reuse ===
     logger = pl.loggers.TensorBoardLogger(
         save_dir=experiment_config["path"],
         name=experiment_config["name"]
     )
 
-    # === 2. Save data_module config BEFORE trainer is created ===
     save_data_module_config(data_module, logger.log_dir)
 
-    # === 3. Create callbacks and trainer ===
     callbacks = create_callbacks(experiment_config.get("callbacks_config", []))
 
     trainer_config = experiment_config.get("trainer_config", {})

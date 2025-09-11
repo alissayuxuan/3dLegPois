@@ -18,7 +18,7 @@ class PoiDataset(Dataset):
         poi_indices,
         include_leg_list,
         poi_flip_pairs=None,
-        input_shape=(190, 215, 1165),
+        input_shape=(150, 215, 185),#(190, 215, 1165),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -83,7 +83,7 @@ class PoiDataset(Dataset):
             subreg.shape == splitseg.shape
         ), f"Subreg and splitseg shapes do not match for subject {subject}"
 
-        zoom = (0.8, 0.8, 0.8)
+        zoom = (1.5, 1.5, 1.5)#(0.8, 0.8, 0.8)
 
         # ct.rescale_and_reorient_(
         #   axcodes_to=('L', 'A', 'S'), voxel_spacing = zoom, verbose = False
@@ -252,7 +252,7 @@ class FemurDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (190, 213, 147),
+        input_shape= (150, 215, 115),#(190, 213, 147),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -363,7 +363,7 @@ class PatellaDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (190, 213, 280),#(70, 50, 70), 
+        input_shape= (150, 215, 185),#(190, 213, 280),#(70, 50, 70), 
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -454,7 +454,7 @@ class LowerLegDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (190, 213, 136), #(150, 165, 555) 
+        input_shape= (150, 215, 95),#(190, 213, 136), #(150, 165, 555) 
         transforms=None,
         flip_prob=0.5,
         include_com=False,

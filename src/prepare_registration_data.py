@@ -1,5 +1,5 @@
 """Run this before training a model to prepare the data."""
-""" Adpated to preprocess the data from the registration"""
+"""Adpated to preprocess the data from the registration dataset -> mainly get files was chnaged"""
 
 import argparse
 import json
@@ -116,16 +116,8 @@ map_label_double  = {
 }
 
 def get_bad_poi_list(exclude: bool, subject_id: str, leg: int,  exclude_dict: dict[str, list[tuple[int, int]]]) ->list[int]:
-    """
-    Args:
-        exclude: Whether to exclude or not,
-        subject_id: Subject ID,
-        leg: Leg ID, 
-        exclude_dict: Dict mapping subject_id -> list of (leg_id, poi_id)
+    """creates the bad poi list for given subject and leg"""
 
-    Returns:
-        A list of global POI IDs
-    """
     if exclude:
         bad_pois = exclude_dict.get(subject_id, [])
         filtered_pois = [ poi_id for leg_id, poi_id in bad_pois if leg_id == leg ]
@@ -134,27 +126,16 @@ def get_bad_poi_list(exclude: bool, subject_id: str, leg: int,  exclude_dict: di
         return []
 
 def rename_poi(poi_object: POI, leg_id: int) -> POI:
-    """Rename POIs based on subject ID and side.
+    """renames POI Ids from region id to leg id (1 = left, 2 = right)"""
 
-    Args:
-        poi_object: POI object to rename
-        side: Side of the body (1 for LEFT, 2 for RIGHT)"""
     
     label_map_full = {key: (leg_id, key[1]) for key in poi_object.keys()}
     poi_object.map_labels(label_map_full=label_map_full, inplace=True)
     return poi_object
 
 def remove_other_region_pois(poi_object: POI, allowed_poi_ids: list[int]) -> POI:
-    """
-    Removes all POIs from the POI object that do NOT belong to the given region(s).
-    
-    Args:
-        poi_object: POI object
-        allowed_region_ids: List of region IDs to keep (e.g., [13] for femur)
-        
-    Returns:
-        Filtered POI object
-    """
+    """removes all POIs that isn't in the given region"""
+
     pois_to_remove = [
         (leg_id, poi_id)
         for (leg_id, poi_id) in poi_object.centroids.keys()
@@ -166,206 +147,54 @@ def remove_other_region_pois(poi_object: POI, allowed_poi_ids: list[int]) -> POI
     return poi_object
 
 
-"""
-def get_right_poi(container) -> POI:
-    right_poi_query = container.new_query(flatten=True)
-    right_poi_query.filter_format("poi")
-    right_poi_query.filter_filetype("json")  # only nifti files
-    right_poi_query.filter_self(lambda f: "right" in str(f.file["json"]).lower())
-    
-    if not right_poi_query.candidates:
-        print("ERROR: No Right POI candidates found!")
-        return None
-    
-    right_poi_candidate = right_poi_query.candidates[0]
-    print(f"Loading Right POI from: {right_poi_candidate}")
-
-    try:
-        poi = POI_Global.load(right_poi_candidate.file["json"])
-        return poi
-    except Exception as e:
-        print(f"Error loading POI: {str(e)}")
-        return None
-    
-def get_left_poi(container) -> POI:
-    left_poi_query = container.new_query(flatten=True)
-    left_poi_query.filter_format("poi")
-    left_poi_query.filter_filetype("json") 
-    left_poi_query.filter_self(lambda f: "left" in str(f.file["json"]).lower())
-
-    if not left_poi_query.candidates:
-        print("ERROR: No Left POI candidates found!")
-        return None
-    
-    left_poi_candidate = left_poi_query.candidates[0]
-    print(f"Loading Left POI from: {left_poi_candidate}")
-
-    try:
-        poi = POI_Global.load(left_poi_candidate.file["json"])
-        return poi
-    except Exception as e:
-        print(f"Error loading POI: {str(e)}")
-        return None
-
-def get_ct(container) -> NII:
-    ct_query = container.new_query(flatten=True)
-    ct_query.filter_format("ct")
-    ct_query.filter_filetype("nii.gz")  # only nifti files
-
-    if not ct_query.candidates:
-        print("ERROR: no CT candidates found!")
-        return None
-        
-    ct_candidate = ct_query.candidates[0]
-
-    try:
-        ct = ct_candidate.open_nii()
-        return ct
-    except Exception as e:
-        print(f"Error opening CT: {str(e)}")
-        return None  
-
-def get_splitseg(container) -> NII:
-    splitseg_query = container.new_query(flatten=True)
-    splitseg_query.filter_format("msk")
-    splitseg_query.filter_self(lambda f: "split" in str(f.file["json"]).lower())
-
-    splitseg_query.filter_filetype("nii.gz")  # only nifti files
-
-    if not splitseg_query.candidates:
-        print("ERROR: No splitseg candidates found!")
-        return None
-    splitseg_candidate = splitseg_query.candidates[0]
-
-    try:
-        splitseg = splitseg_candidate.open_nii()
-        return splitseg
-    except Exception as e:
-        print(f"Error opening splitseg: {str(e)}")
-        return None
-
-def get_right_subreg(container) -> NII:
-    subreg_query = container.new_query(flatten=True)
-    subreg_query.filter_format("msk")
-    subreg_query.filter_self(lambda f: "right" in str(f.file["json"]).lower())
-    subreg_query.filter_self(lambda f: "subreg" in str(f.file["json"]).lower())
-
-    subreg_query.filter_filetype("nii.gz")  # only nifti files
-    if not subreg_query.candidates:
-        print("ERROR: No right subreg candidates found!")
-        return None
-
-    subreg_candidate = subreg_query.candidates[0]
-
-    try:
-        subreg = subreg_candidate.open_nii()
-        return subreg
-    except Exception as e:
-        print(f"Error opening right subreg: {str(e)}")
-        return None
-    
-def get_left_subreg(container) -> NII:
-    subreg_query = container.new_query(flatten=True)
-    subreg_query.filter_format("msk")
-    subreg_query.filter_self(lambda f: "left" in str(f.file["json"]).lower())
-    subreg_query.filter_self(lambda f: "subreg" in str(f.file["json"]).lower())
-
-    subreg_query.filter_filetype("nii.gz")  # only nifti files
-    if not subreg_query.candidates:
-        print("ERROR: No left subreg candidates found!")
-        return None
-
-    subreg_candidate = subreg_query.candidates[0]
-
-    try:
-        subreg = subreg_candidate.open_nii()
-        return subreg
-    except Exception as e:
-        print(f"Error opening left subreg: {str(e)}")
-        return None
-    
-def get_right_boneseg(container) -> NII:
-    boneseg_query = container.new_query(flatten=True)
-    boneseg_query.filter_format("msk")
-    boneseg_query.filter_self(lambda f: "left" in str(f.file["json"]).lower())
-    boneseg_query.filter_self(lambda f: "subreg" not in str(f.file["json"]).lower())
-
-    boneseg_query.filter_filetype("nii.gz")  # only nifti files
-    if not boneseg_query.candidates:
-        print("ERROR: No right boneseg candidates found!")
-        return None
-
-    boneseg_candidate = boneseg_query.candidates[0]
-
-    try:
-        boneseg = boneseg_candidate.open_nii()
-        return boneseg
-    except Exception as e:
-        print(f"Error opening right boneseg: {str(e)}")
-        return None
-
-def get_left_boneseg(container) -> NII:
-    boneseg_query = container.new_query(flatten=True)
-    boneseg_query.filter_format("msk")
-    boneseg_query.filter_self(lambda f: "left" in str(f.file["json"]).lower())
-    boneseg_query.filter_self(lambda f: "subreg" not in str(f.file["json"]).lower())
-
-    boneseg_query.filter_filetype("nii.gz")  # only nifti files
-    if not boneseg_query.candidates:
-        print("ERROR: No left boneseg candidates found!")
-        return None
-
-    boneseg_candidate = boneseg_query.candidates[0]
-
-    try:
-        boneseg = boneseg_candidate.open_nii()
-        return boneseg
-    except Exception as e:
-        print(f"Error opening left boneseg: {str(e)}")
-        return None
-"""
-
-
-SUBREG_LABELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+SUBREG_LABELS = [1, 2, 3, 4, 5, 6, 7, 13, 14, 15, 16, 18]
 
 
 def get_right_subreg(container) -> NII:
     subreg_query = container.new_query(flatten=True)
     subreg_query.filter_format("msk")
-    subreg_query.filter_self(lambda f: "right" in str(f.file["json"]).lower())
-    subreg_query.filter_self(lambda f: "subreg" in str(f.file["json"]).lower())
+    subreg_query.filter_self(lambda f: "right" in str(f.file["nii.gz"]).lower())
+    subreg_query.filter_self(lambda f: "subreg" in str(f.file["nii.gz"]).lower())
 
     subreg_query.filter_filetype("nii.gz")  # only nifti files
     if not subreg_query.candidates:
         print("ERROR: No right subreg candidates found!")
         return None, None, None
     
+    print("subreg_candidates: ", subreg_query.candidates)
+
     for i in range(len(subreg_query.candidates)):
         subreg_candidate = subreg_query.candidates[i]
 
         try:
             subreg = subreg_candidate.open_nii()
 
-            present_labels = subreg.unique()  
+            subreg_array = subreg.get_array()
+            present_labels = np.unique(subreg_array)
+            
+            print(f"present_labels for candidate {subreg_candidate}: {present_labels}") 
             
             # Check if all expected labels are present  
             if all(label in present_labels for label in SUBREG_LABELS):
-                session = subreg.get("ses")  
-                sequence = subreg.get("sequ")
+                session = subreg_candidate.get("ses")  
+                sequence = subreg_candidate.get("sequ")
 
+                print(f"session: {session}, sequ: {sequence}")
+                print(f"subreg: {subreg}")
                 return subreg, session, sequence
         
         except Exception as e:
             print(f"Error opening right subreg: {str(e)}")
             return None, None, None
-        
+    
+    print("no complete subreg found")
     return None, None, None
 
 def get_left_subreg(container, session, sequence) -> NII:
     subreg_query = container.new_query(flatten=True)
     subreg_query.filter_format("msk")
-    subreg_query.filter_self(lambda f: "left" in str(f.file["json"]).lower())
-    subreg_query.filter_self(lambda f: "subreg" in str(f.file["json"]).lower())
+    subreg_query.filter_self(lambda f: "left" in str(f.file["nii.gz"]).lower())
+    subreg_query.filter_self(lambda f: "subreg" in str(f.file["nii.gz"]).lower())
 
     subreg_query.filter("ses", session)  
     subreg_query.filter("sequ", sequence)  
@@ -387,8 +216,8 @@ def get_left_subreg(container, session, sequence) -> NII:
 def get_right_boneseg(container, session, sequence) -> NII:
     boneseg_query = container.new_query(flatten=True)
     boneseg_query.filter_format("msk")
-    boneseg_query.filter_self(lambda f: "right" in str(f.file["json"]).lower())
-    boneseg_query.filter_self(lambda f: "subreg" not in str(f.file["json"]).lower())
+    boneseg_query.filter_self(lambda f: "right" in str(f.file["nii.gz"]).lower())
+    boneseg_query.filter_self(lambda f: "subreg" not in str(f.file["nii.gz"]).lower())
     boneseg_query.filter("ses", session)  
     boneseg_query.filter("sequ", sequence)  
     boneseg_query.filter_filetype("nii.gz")  # only nifti files
@@ -409,8 +238,8 @@ def get_right_boneseg(container, session, sequence) -> NII:
 def get_left_boneseg(container, session, sequence) -> NII:
     boneseg_query = container.new_query(flatten=True)
     boneseg_query.filter_format("msk")
-    boneseg_query.filter_self(lambda f: "left" in str(f.file["json"]).lower())
-    boneseg_query.filter_self(lambda f: "subreg" not in str(f.file["json"]).lower())
+    boneseg_query.filter_self(lambda f: "left" in str(f.file["nii.gz"]).lower())
+    boneseg_query.filter_self(lambda f: "subreg" not in str(f.file["nii.gz"]).lower())
     boneseg_query.filter("ses", session)  
     boneseg_query.filter("sequ", sequence) 
     boneseg_query.filter_filetype("nii.gz")  # only nifti files
@@ -431,7 +260,7 @@ def get_left_boneseg(container, session, sequence) -> NII:
 def get_splitseg(container, session, sequence) -> NII:
     splitseg_query = container.new_query(flatten=True)
     splitseg_query.filter_format("msk")
-    splitseg_query.filter_self(lambda f: "split" in str(f.file["json"]).lower())
+    splitseg_query.filter_self(lambda f: "split" in str(f.file["nii.gz"]).lower())
     splitseg_query.filter("ses", session)  
     splitseg_query.filter("sequ", sequence) 
     splitseg_query.filter_filetype("nii.gz")  # only nifti files
@@ -471,8 +300,8 @@ def get_ct(container, session, sequence) -> NII:
 def get_right_poi(container, session, sequence) -> POI:
     right_poi_query = container.new_query(flatten=True)
     right_poi_query.filter_format("poi")
-    right_poi_query.filter_filetype("json")  # only nifti files
-    right_poi_query.filter_self(lambda f: "right" in str(f.file["json"]).lower())
+    right_poi_query.filter_filetype("mrk.json")  # only nifti files
+    right_poi_query.filter_self(lambda f: "right" in str(f.file["mrk.json"]).lower())
     right_poi_query.filter("ses", session)  
     right_poi_query.filter("sequ", sequence) 
     
@@ -484,7 +313,7 @@ def get_right_poi(container, session, sequence) -> POI:
     print(f"Loading Right POI from: {right_poi_candidate}")
 
     try:
-        poi = POI_Global.load(right_poi_candidate.file["json"])
+        poi = POI_Global.load(right_poi_candidate.file["mrk.json"])
         return poi
     except Exception as e:
         print(f"Error loading POI: {str(e)}")
@@ -493,8 +322,8 @@ def get_right_poi(container, session, sequence) -> POI:
 def get_left_poi(container, session, sequence) -> POI:
     left_poi_query = container.new_query(flatten=True)
     left_poi_query.filter_format("poi")
-    left_poi_query.filter_filetype("json") 
-    left_poi_query.filter_self(lambda f: "left" in str(f.file["json"]).lower())
+    left_poi_query.filter_filetype("mrk.json") 
+    left_poi_query.filter_self(lambda f: "left" in str(f.file["mrk.json"]).lower())
     left_poi_query.filter("ses", session)  
     left_poi_query.filter("sequ", sequence) 
 
@@ -506,7 +335,7 @@ def get_left_poi(container, session, sequence) -> POI:
     print(f"Loading Left POI from: {left_poi_candidate}")
 
     try:
-        poi = POI_Global.load(left_poi_candidate.file["json"])
+        poi = POI_Global.load(left_poi_candidate.file["mrk.json"])
         return poi
     except Exception as e:
         print(f"Error loading POI: {str(e)}")
@@ -563,16 +392,13 @@ def get_bounding_box_region(split_mask, seg_mask, leg_side, region_ids, straight
     region_mask = np.isin(seg_mask, region_ids)
     combined_mask = np.logical_and(side_mask, region_mask)
 
-    # No voxels? Return None or raise
     if not np.any(combined_mask):
         raise ValueError("No voxels found for the given leg side and region.")
 
-    # Get coordinates of the non-zero voxels
     indices = np.where(combined_mask)
 
     if straight_cut:
         print("STRAIGHT_CUT (bounding box)")
-        # Use full x and y extent of the leg side
         full_leg_indices = np.where(side_mask)
         x_min = np.min(full_leg_indices[0]) - margin
         x_max = np.max(full_leg_indices[0]) + margin
@@ -582,7 +408,6 @@ def get_bounding_box_region(split_mask, seg_mask, leg_side, region_ids, straight
         z_min = np.min(indices[2]) - margin
         z_max = np.max(indices[2]) + margin
     else:
-        # Standard behavior: crop tightly around region
         x_min = np.min(indices[0]) - margin
         x_max = np.max(indices[0]) + margin
         y_min = np.min(indices[1]) - margin
@@ -590,7 +415,6 @@ def get_bounding_box_region(split_mask, seg_mask, leg_side, region_ids, straight
         z_min = np.min(indices[2]) - margin
         z_max = np.max(indices[2]) + margin
 
-    # Make sure the bounding box is within the mask
     x_min = max(0, x_min)
     x_max = min(seg_mask.shape[0], x_max)
     y_min = max(0, y_min)
@@ -616,19 +440,18 @@ def get_bounding_box_fov(split_mask, seg_mask, leg_side, fov_pois, poi, margin=5
         Tuple[int, int, int, int, int, int]: x_min, x_max, y_min, y_max, z_min, z_max
     """
 
-    #TODO
-
-    assert split_mask.shape == seg_mask.shape, "Masks must have the same shape."
-
     # Create combined mask
     side_mask = split_mask == leg_side
 
     # get all coordinates of the POIs in the FOV
-    fov_coords = np.array([poi.centroids[(leg_side, poi_id)] for poi_id in fov_pois])
-
-    # retrieve the min and max z-coordinates of the FOV POIs
-    #z_min = int(np.floor(np.min(fov_coords[:, 2])) - margin)
-    #z_max = int(np.ceil(np.max(fov_coords[:, 2])) + margin)
+    fov_coords = []
+    for poi_id in fov_pois:
+        key = (leg_side, poi_id)
+        if key in poi.centroids:
+            fov_coords.append(poi.centroids[key])
+        else:
+            print(f"Warning: POI {poi_id} of leg {leg_side} not found")
+    fov_coords = np.array(fov_coords)
 
     z_min = int(np.floor(np.min(fov_coords[:, 2])))
     z_min -= margin
@@ -641,7 +464,6 @@ def get_bounding_box_fov(split_mask, seg_mask, leg_side, fov_pois, poi, margin=5
     y_min = np.min(full_leg_indices[1]) - margin
     y_max = np.max(full_leg_indices[1]) + margin
 
-    # Make sure the bounding box is within the mask
     x_min = max(0, x_min)
     x_max = min(seg_mask.shape[0], x_max)
     y_min = max(0, y_min)
@@ -655,10 +477,12 @@ def get_bounding_box_fov(split_mask, seg_mask, leg_side, fov_pois, poi, margin=5
 
 
 def cut_and_save(save_cut_path, splitseg, subreg, boneseg, ct, poi, x_min, x_max, y_min, y_max, z_min, z_max, rescale_zoom=None, region_pois=None):
+    """Crops and saves the data files according to the bounding box."""
+
     split_path = os.path.join(save_cut_path, "split.nii.gz")
     subreg_path = os.path.join(save_cut_path, "subreg.nii.gz")
     boneseg_path = os.path.join(save_cut_path, "boneseg.nii.gz")
-    ct_path = os.path.join(save_cut_path, "ct.nii.gz")
+    #ct_path = os.path.join(save_cut_path, "ct.nii.gz")
     poi_path = os.path.join(save_cut_path, "poi.json")
     poi_path_global = os.path.join(save_cut_path, "poi_global.json")
 
@@ -675,9 +499,9 @@ def cut_and_save(save_cut_path, splitseg, subreg, boneseg, ct, poi, x_min, x_max
         boneseg_cropped = boneseg.apply_crop(
             ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
         )
-        ct_cropped = ct.apply_crop(
-                    ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
-                )
+        #ct_cropped = ct.apply_crop(
+        #            ex_slice=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
+        #        )
         poi_cropped = poi.apply_crop(
                 o_shift=(slice(x_min, x_max), slice(y_min, y_max), slice(z_min, z_max))
             )
@@ -696,13 +520,13 @@ def cut_and_save(save_cut_path, splitseg, subreg, boneseg, ct, poi, x_min, x_max
         split_cropped.rescale_(rescale_zoom)
         subreg_cropped.rescale_(rescale_zoom)
         boneseg_cropped.rescale(rescale_zoom)
-        ct_cropped.rescale(rescale_zoom)
+        #ct_cropped.rescale(rescale_zoom)
         poi_cropped.rescale_(rescale_zoom)
 
     split_cropped.save(split_path, verbose=False)
     subreg_cropped.save(subreg_path, verbose=False)
     boneseg_cropped.save(boneseg_path, verbose=False)
-    ct_cropped.save(ct_path, verbose=False)
+    #ct_cropped.save(ct_path, verbose=False)
     poi_cropped.save(poi_path, verbose=False)
     poi_cropped.to_global().save_mrk(poi_path_global)
 
@@ -737,8 +561,9 @@ def process_container(
     side_cut: bool = False
 ):
     right_subreg, session, sequence = get_right_subreg(container)  
-    if right_subreg == None:
-        print("SKIP")
+    print(f"right_subreg: {right_subreg}, session: {session}, sequence: {sequence}")
+    if not right_subreg:
+        print("SKIP- right subreg: none")
         return []
       
     right_poi, left_poi, ct, splitseg, left_subreg, right_boneseg, left_boneseg = get_files_fn(container, session, sequence)
@@ -827,7 +652,6 @@ def prepare_data(
     fov_cut: bool = False,
     side_cut: bool = False
 ):
-    #master = []
     # This will collect results per region
     region_results = defaultdict(list)
 
@@ -842,7 +666,6 @@ def prepare_data(
         side_cut=side_cut
     )
 
-    
     master = pqdm(
         bids_surgery_info.enumerate_subjects(),
         partial_process_container,
@@ -851,17 +674,15 @@ def prepare_data(
         exception_behaviour="immediate",
     )
     master = [item for sublist in master for item in sublist]
-    #master_df = pd.DataFrame(master)
-    #master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
     
     if not side_cut:
-        # Gruppieren nach Region
+        # group by region
         region_results = defaultdict(list)
         for entry in master:
             region = entry["region"]
             region_results[region].append(entry)
 
-        # Speichern pro Region
+        # save each region
         for region_name, entries in region_results.items():
             df = pd.DataFrame(entries)
             region_folder = os.path.join(save_path, region_name)
@@ -869,34 +690,10 @@ def prepare_data(
             df.to_csv(os.path.join(region_folder, "master_df.csv"), index=False)
 
     else:
-        # Wenn side_cut=True -> alles in eine Datei schreiben
+        # if side_cut=True -> save into one file
         master_df = pd.DataFrame(master)
         os.makedirs(save_path, exist_ok=True)
         master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
-
-
-    """
-    for subject, container in bids_surgery_info.enumerate_subjects():
-        print("prepare_data")
-
-        result = partial_process_container(subject, container)  # Process sequentially
-        #master.extend(result)  # Flatten results (same as your original list comprehension)
-        if not side_cut:
-            for entry in result:
-                region = entry["region"]
-                region_results[region].append(entry)
-
-    # Save results for each region
-    if not side_cut:
-        for region_name, entries in region_results.items():
-            df = pd.DataFrame(entries)
-            region_folder = os.path.join(save_path, region_name)
-            os.makedirs(region_folder, exist_ok=True)
-            df.to_csv(os.path.join(region_folder, "master_df.csv"), index=False)
-    # Convert to DataFrame and save
-    #master_df = pd.DataFrame(master)
-    #master_df.to_csv(os.path.join(save_path, "master_df.csv"), index=False)
-    """
     
 
 if __name__ == "__main__":
@@ -977,7 +774,9 @@ if __name__ == "__main__":
         get_left_poi_fn=get_left_poi,
         get_ct_fn=get_ct,
         get_splitseg_fn=get_splitseg,
-        get_subreg_fn=get_subreg,
+        get_left_subreg_fn=get_left_subreg,
+        get_right_boneseg_fn=get_right_boneseg,
+        get_left_boneseg_fn=get_left_boneseg
     )
     
     prepare_data(
