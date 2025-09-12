@@ -24,6 +24,7 @@ class POIDataModule(pl.LightningDataModule):
         val_subjects: list,
         test_subjects: list,
         input_shape: tuple = (190, 213, 280),
+        zoom: tuple = (0.8, 0.8, 0.8),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -41,6 +42,7 @@ class POIDataModule(pl.LightningDataModule):
         self.val_subjects = val_subjects
         self.test_subjects = test_subjects
         self.input_shape = input_shape
+        self.zoom = zoom
         self.flip_prob = flip_prob
         self.include_com = include_com
         self.include_poi_list = include_poi_list
@@ -76,6 +78,7 @@ class POIDataModule(pl.LightningDataModule):
             self.train_dataset = FemurDataset(
                 self.train_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -87,6 +90,7 @@ class POIDataModule(pl.LightningDataModule):
             self.val_dataset = FemurDataset(
                 self.val_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -98,6 +102,7 @@ class POIDataModule(pl.LightningDataModule):
             self.test_dataset = FemurDataset(
                 self.test_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -110,6 +115,7 @@ class POIDataModule(pl.LightningDataModule):
             self.train_dataset = PatellaDataset(
                 self.train_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -121,6 +127,7 @@ class POIDataModule(pl.LightningDataModule):
             self.val_dataset = PatellaDataset(
                 self.val_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -132,6 +139,7 @@ class POIDataModule(pl.LightningDataModule):
             self.test_dataset = PatellaDataset(
                 self.test_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -144,6 +152,7 @@ class POIDataModule(pl.LightningDataModule):
             self.train_dataset = LowerLegDataset(
                 self.train_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -155,6 +164,7 @@ class POIDataModule(pl.LightningDataModule):
             self.val_dataset = LowerLegDataset(
                 self.val_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -166,6 +176,7 @@ class POIDataModule(pl.LightningDataModule):
             self.test_dataset = LowerLegDataset(
                 self.test_df,
                 input_shape=self.input_shape,
+                zoom=self.zoom,
                 include_com=self.include_com,
                 include_poi_list=self.include_poi_list,
                 include_leg_list=self.include_leg_list,
@@ -208,7 +219,8 @@ class FemurDataModule(POIDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (150, 215, 115),#(190, 213, 147),
+        input_shape: tuple = (150, 215, 115),
+        zoom: tuple = (0.8, 0.8, 0.8),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -226,6 +238,7 @@ class FemurDataModule(POIDataModule):
             val_subjects=val_subjects,
             test_subjects=test_subjects,
             input_shape=input_shape,
+            zoom=zoom,
             flip_prob=flip_prob,
             transform_config=transform_config,
             include_com=include_com,
@@ -244,7 +257,8 @@ class PatellaDataModule(POIDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (150, 215, 185),#(190, 213, 280),
+        input_shape: tuple = (150, 215, 185),
+        zoom: tuple = (0.8, 0.8, 0.8),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -262,6 +276,7 @@ class PatellaDataModule(POIDataModule):
             val_subjects=val_subjects,
             test_subjects=test_subjects,
             input_shape=input_shape,
+            zoom=zoom,
             flip_prob=flip_prob,
             transform_config=transform_config,
             include_com=include_com,
@@ -280,7 +295,8 @@ class LowerLegDataModule(POIDataModule):
         train_subjects: list,
         val_subjects: list,
         test_subjects: list,
-        input_shape: tuple = (150, 215, 95),#(190, 213, 136), 
+        input_shape: tuple = (150, 215, 95),
+        zoom: tuple = (0.8, 0.8, 0.8),
         flip_prob: float = 0.5,
         transform_config: dict | None = None,
         include_com: bool = False,
@@ -298,6 +314,7 @@ class LowerLegDataModule(POIDataModule):
             val_subjects=val_subjects,
             test_subjects=test_subjects,
             input_shape=input_shape,
+            zoom=zoom,
             flip_prob=flip_prob,
             transform_config=transform_config,
             include_com=include_com,

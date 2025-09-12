@@ -200,7 +200,6 @@ class PatchTransformer(nn.Module):
         num_heads: int = 4,
         dropout: float = 0.2,
         lr: float = 1e-5,
-        zoom=(1, 1, 1)
     ):
         super().__init__()
 
@@ -235,8 +234,6 @@ class PatchTransformer(nn.Module):
         self.lr = lr
 
         self.warmup_epochs = warmup_epochs
-
-        self.zoom = torch.tensor(zoom, dtype=torch.float32)
 
     def forward(self, batch):
         coarse_preds = batch["coarse_preds"]
@@ -278,7 +275,8 @@ class PatchTransformer(nn.Module):
             surface = batch["surface"]
             target, _ = surface_project_coords(target, surface)
 
-        zoom = self.zoom.to(target.device)
+        zoom = batch["zoom"].to(target.device)
+        zoom = zoom.unsqueeze(1)
 
         refined_preds_mm = batch["refined_preds"] * zoom
         target_mm = target * zoom
@@ -302,7 +300,8 @@ class PatchTransformer(nn.Module):
             metrics[f"fine_projection_dist_{mode}"] = projection_dist.mean()
         
         # Consider zoom (mm per voxel)
-        zoom = self.zoom.to(target.device)
+        zoom = batch["zoom"].to(target.device)
+        zoom = zoom.unsqueeze(1)
 
         # Calculate the mean Euclidean distance between the predicted and target landmarks
         distances = torch.norm((fine_preds - target) * zoom, dim=-1)  # (batch_size, n_landmarks)

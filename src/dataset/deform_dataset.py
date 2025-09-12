@@ -1,4 +1,6 @@
-
+"""
+Performs elastic deform on a BIDS-like dataset and saves the deformed files into the BIDS
+"""
 import os
 from functools import partial
 from os import PathLike
@@ -11,7 +13,6 @@ from TPTBox.core.poi import POI
 from TPTBox.core.poi_fun.poi_global import POI_Global
 
 from elastic_deform import apply_elastic_deformation
-
 
 
 def get_right_poi(container) -> Tuple[POI, str]:

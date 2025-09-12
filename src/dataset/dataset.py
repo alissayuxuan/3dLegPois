@@ -19,6 +19,7 @@ class PoiDataset(Dataset):
         include_leg_list,
         poi_flip_pairs=None,
         input_shape=(150, 215, 185),#(190, 215, 1165),
+        zoom=(0.8, 0.8, 0.8),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -31,6 +32,7 @@ class PoiDataset(Dataset):
             master_df = master_df[master_df["use_sample"]]
         self.master_df = master_df
         self.input_shape = input_shape
+        self.zoom = zoom
         self.poi_indices = poi_indices
         self.transform = Compose(transforms) if transforms else None
         if flip_prob > 0:
@@ -83,19 +85,19 @@ class PoiDataset(Dataset):
             subreg.shape == splitseg.shape
         ), f"Subreg and splitseg shapes do not match for subject {subject}"
 
-        zoom = (1.5, 1.5, 1.5)#(0.8, 0.8, 0.8)
+        
 
         # ct.rescale_and_reorient_(
-        #   axcodes_to=('L', 'A', 'S'), voxel_spacing = zoom, verbose = False
+        #   axcodes_to=('L', 'A', 'S'), voxel_spacing = self.zoom, verbose = False
         # )
         subreg.rescale_and_reorient_(
-            axcodes_to=("L", "A", "S"), voxel_spacing=zoom, verbose=False
+            axcodes_to=("L", "A", "S"), voxel_spacing=self.zoom, verbose=False
         )
         splitseg.rescale_and_reorient_(
-            axcodes_to=("L", "A", "S"), voxel_spacing=zoom, verbose=False
+            axcodes_to=("L", "A", "S"), voxel_spacing=self.zoom, verbose=False
         )
         poi.reorient_(axcodes_to=("L", "A", "S"), verbose=False).rescale_(
-            zoom, verbose=False
+            self.zoom, verbose=False
         )
 
         # Get the ground truth POIs
@@ -169,7 +171,7 @@ class PoiDataset(Dataset):
         data_dict["surface"] = surface
         data_dict["subject"] = str(subject)
         data_dict["leg"] = leg
-        data_dict["zoom"] = torch.tensor(zoom).float()
+        data_dict["zoom"] = torch.tensor(self.zoom).float()
         data_dict["offset"] = torch.tensor(offset).float()
         data_dict["ct_path"] = ct_path
         data_dict["msk_path"] = msk_path
@@ -182,77 +184,13 @@ class PoiDataset(Dataset):
 
         return data_dict
 
-"""class FemurDataset(PoiDataset):
-    def __init__(
-        self,
-        master_df,
-        input_shape= (170, 145, 625),#(190, 215, 1165),#(128, 128, 96), #TODO
-        transforms=None,
-        flip_prob=0.5,
-        include_com=False,
-        include_poi_list=None,
-        include_leg_list=None,
-        poi_file_ending="poi.json",
-        iterations=1,
-    ):
-        super().__init__(
-            master_df,
-            poi_indices=(
-                include_poi_list
-                if include_poi_list
-                else (
-                    [
-                        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
-                    ]
-                    if include_com
-                    else [
-                        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
-                    ]
-                )
-            ),
-            include_leg_list=(
-                include_leg_list
-                if include_leg_list
-                else [
-                    1, 2
-                ]
-            ),
-            poi_flip_pairs={
-                # Middle points
-                10: 10,
-                11: 11,
-                12: 12,
-                13: 13, #???
-                18: 18,
-                19: 19,
-                20: 20,
-
-                # Flipped left to right
-                8: 9,
-                #13: 32,
-                14: 21,
-                15: 22,
-                16: 17,
-
-                # Flipped right to left
-                9: 8,
-                21: 14,
-                22: 15,
-                17: 16,
-            },
-            input_shape=input_shape,
-            transforms=transforms,
-            flip_prob=flip_prob,
-            include_com=include_com,
-            poi_file_ending=poi_file_ending,
-            iterations=iterations,
-        )"""
 
 class FemurDataset(PoiDataset):
     def __init__(
         self,
         master_df,
         input_shape= (150, 215, 115),#(190, 213, 147),
+        zoom=(0.8, 0.8, 0.8),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -293,6 +231,7 @@ class FemurDataset(PoiDataset):
                 19: 19
             },
             input_shape=input_shape,
+            zoom=zoom,
             transforms=transforms,
             flip_prob=flip_prob,
             include_com=include_com,
@@ -363,7 +302,8 @@ class PatellaDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (150, 215, 185),#(190, 213, 280),#(70, 50, 70), 
+        input_shape= (150, 215, 185),
+        zoom=(0.8, 0.8, 0.8),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -443,6 +383,7 @@ class PatellaDataset(PoiDataset):
                 121: 114
             },
             input_shape=input_shape,
+            zoom=zoom,
             transforms=transforms,
             flip_prob=flip_prob,
             include_com=include_com,
@@ -454,7 +395,8 @@ class LowerLegDataset(PoiDataset):
     def __init__(
         self,
         master_df,
-        input_shape= (150, 215, 95),#(190, 213, 136), #(150, 165, 555) 
+        input_shape= (150, 215, 95),
+        zoom=(0.8, 0.8, 0.8),
         transforms=None,
         flip_prob=0.5,
         include_com=False,
@@ -500,6 +442,7 @@ class LowerLegDataset(PoiDataset):
 
             },
             input_shape=input_shape,
+            zoom=zoom,
             transforms=transforms,
             flip_prob=flip_prob,
             include_com=include_com,

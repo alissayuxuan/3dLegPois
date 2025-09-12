@@ -118,7 +118,7 @@ map_label_double  = {
 
 def get_bad_poi_list(exclude: bool, subject_id: str, leg: int,  exclude_dict: dict[str, list[tuple[int, int]]]) ->list[int]:
     """creates the bad poi list for given subject and leg"""
-    
+
     if exclude:
         bad_pois = exclude_dict.get(subject_id, [])
         filtered_pois = [ poi_id for leg_id, poi_id in bad_pois if leg_id == leg ]
@@ -685,7 +685,7 @@ if __name__ == "__main__":
         bids_surgery_info=bids_global_info,
         save_path=args.save_path,
         get_files_fn=get_data_files,
-        rescale_zoom=None if args.no_rescale else (0.8, 0.8, 0.8),
+        rescale_zoom=None if args.no_rescale else (1.5, 1.5, 1.5),#(0.8, 0.8, 0.8),
         n_workers=args.n_workers,
         exclude=args.exclude, 
         straight_cut=args.straight_cut,

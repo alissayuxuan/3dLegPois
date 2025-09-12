@@ -10,7 +10,7 @@ def find_max_shape():
     """
     finds the maximum shape of the subregs in the cutout folder.
     """
-    base_dir = 'data_preprocessing/cutout-folder/cutouts-registration-1.5_zoom/patella'  # Basisordner anpassen, falls nötig
+    base_dir = 'data_preprocessing/cutout-folder/cutouts-registration-1.5_zoom/patella' # change!
 
     max_shape = None
 
@@ -46,7 +46,7 @@ def find_max_shape():
 
 def get_all_pois():
 
-    base_dir = 'data_preprocessing/cutouts-folder/cutouts_exclude'  # Basisordner anpassen, falls nötig
+    base_dir = 'data_preprocessing/cutouts-folder/cutouts_exclude'  # change!
 
     unique_pois = set()
 
@@ -71,8 +71,8 @@ def rescale_cutouts(zoom:tuple):
     """
     rescales all files to specified zoom
     """
-    base_dir = 'data_preprocessing/cutout-folder/cutouts-registration/patella' # change
-    save_dir = 'data_preprocessing/cutout-folder/cutouts-registration-1.5_zoom/patella' #change
+    base_dir = 'data_preprocessing/cutout-folder/cutouts-registration/patella' # change!
+    save_dir = 'data_preprocessing/cutout-folder/cutouts-registration-1.5_zoom/patella' # change!
 
 
     for ws_folder in os.listdir(base_dir):
