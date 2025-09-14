@@ -10,7 +10,7 @@ def find_max_shape():
     """
     finds the maximum shape of the subregs in the cutout folder.
     """
-    base_dir = 'data_preprocessing/cutout-folder/cutouts-registration-1.5_zoom/patella' # change!
+    base_dir = 'data_preprocessing/cutout-folder/cutouts-folder-deform_more/fov_cut/patella' # change!
 
     max_shape = None
 

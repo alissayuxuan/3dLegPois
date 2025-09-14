@@ -57,6 +57,7 @@ def surface_project_coords(coordinates, surface):
     return surface_projected_targets.to(device), surface_projection_dist.to(device)
 
 
+
 # POI Visualization
 # Define some useful utility functions
 def get_dd_ctd(dd, poi_list=None):
