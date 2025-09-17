@@ -116,9 +116,10 @@ bids/*
 
 # ignore big data
 src/dataset/data_preprocessing/*
-src/experiments/*
+src/experiments/experiment_evaluation/*
+src/experiments/experiment_logs/*
 src/predictions/*
-src/hyperparam_tuning/optuna_runs/*
+src/hyperparam_tuning/*
 
 *.ckpt
 *.nii.gz

@@ -1,0 +1,216 @@
+{
+    "path": "experiments/experiment_logs/fov_cut",
+    "name": "lowerleg-subreg-no_surface-SADenseNet-PatchTransformer-exclude",
+    "module_config": {
+        "type": "PoiPredictionModule",
+        "params": {
+            "coarse_config": {
+                "type": "SADenseNet",
+                "params": {
+                    "in_channels": 1,
+                    "n_landmarks": 4,
+                    "loss_fn": "WingLoss",
+                    "feature_l": 256,
+                    "init_features": 64,
+                    "growth_rate": 32,
+                    "block_config": [
+                        6,
+                        12,
+                        12
+                    ],
+                    "bn_size": 4,
+                    "dropout_prob": 0.0,
+                    "lr": 0.0001,
+                    "project_gt": false
+                }
+            },
+            "refinement_config": {
+                "type": "PatchTransformer",
+                "params": {
+                    "n_landmarks": 4,
+                    "n_legs": 2,
+                    "patch_size": 16,
+                    "poi_feature_l": 256,
+                    "patch_feature_l": 64,
+                    "coord_embedding_l": 64,
+                    "poi_embedding_l": 64,
+                    "leg_embedding_l": 128,
+                    "loss_fn": "WingLoss",
+                    "warmup_epochs": -1,
+                    "mlp_dim": 512,
+                    "num_layers": 2,
+                    "num_heads": 4,
+                    "dropout": 0.0,
+                    "lr": 1e-05,
+                    "project_gt": false
+                }
+            },
+            "lr": 0.001,
+            "loss_weights": [
+                1,
+                1
+            ],
+            "optimizer": "AdamW",
+            "scheduler_config": {
+                "type": "LinearLR",
+                "params": {
+                    "start_factor": 1,
+                    "end_factor": 0.1,
+                    "total_iters": 20
+                }
+            }
+        }
+    },
+    "callbacks_config": [
+        {
+            "type": "ModelCheckpoint",
+            "params": {
+                "monitor": "fine_mean_distance_masked_val",
+                "filename": "sad-pt-{epoch:02d}-{fine_mean_distance_val:.2f}",
+                "save_top_k": 3,
+                "mode": "min"
+            }
+        },
+        {
+            "type": "EarlyStopping",
+            "params": {
+                "monitor": "fine_mean_distance_val",
+                "patience": 20,
+                "verbose": true,
+                "mode": "min"
+            }
+        }
+    ],
+    "trainer_config": {
+        "accelerator": "gpu",
+        "max_epochs": 200,
+        "log_every_n_steps": 10,
+        "accumulate_grad_batches": 2
+    },
+    "data_module_config": {
+        "type": "LowerLegDataModule",
+        "region": "LowerLeg",
+        "params": {
+            "master_df": "/home/student/alissa/3dLegPois/src/dataset/data_preprocessing/cutouts-folder-deform/fov_cut/lowerleg/master_df.csv",
+            "train_subjects": [
+                "CTFU00099",
+                "DCTFU000991", 
+                "DCTFU000992",
+                "CTFU04045",
+                "DCTFU040451",
+                "DCTFU040452",
+                "CTFU04072",
+                "DCTFU040721",
+                "DCTFU040722",
+                "CTFU04656",
+                "DCTFU046561",
+                "DCTFU046562",
+                "MM00024",
+                "DMM000241",
+                "DMM000242",
+                "MM00027",
+                "DMM000271",
+                "DMM000272",
+                "MM00069",
+                "DMM000691",
+                "DMM000692",
+                "MM00070",
+                "DMM000701",
+                "DMM000702"
+
+            ],
+            "val_subjects": [
+                "MM00071",
+                "DMM000711",
+                "DMM000712",
+                "MM00213",
+                "DMM002131",
+                "DMM002132"
+            ],
+            "test_subjects": [
+                "MM00214",
+                "DMM002141",
+                "DMM002142",
+                "MM00233",
+                "DMM002331",
+                "DMM002332"
+            ],
+            "input_shape": [
+                190,
+                213,
+                136
+            ],
+            "flip_prob": 0.5,
+            "transform_config": {
+                "type": "LandmarksRandAffine",
+                "params": {
+                    "prob": 0.8,
+                    "rotate_range": [
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ],
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ],
+                        [
+                            -0.3490658503988659,
+                            0.3490658503988659
+                        ]
+                    ],
+                    "shear_range": [
+                        [
+                            -0.1,
+                            0.1
+                        ],
+                        [
+                            -0.1,
+                            0.1
+                        ],
+                        [
+                            -0.1,
+                            0.1
+                        ]
+                    ],
+                    "translate_range": [
+                        [
+                            -5,
+                            5
+                        ],
+                        [
+                            -5,
+                            5
+                        ],
+                        [
+                            -5,
+                            5
+                        ]
+                    ],
+                    "scale_range": [
+                        [
+                            -0.2,
+                            0.1
+                        ],
+                        [
+                            -0.2,
+                            0.1
+                        ],
+                        [
+                            -0.2,
+                            0.1
+                        ]
+                    ],
+                    "device": "cpu"
+                }
+            },
+            "include_com": false,
+            "batch_size": 4,
+            "num_workers": 3,
+            "include_leg_list": [
+                1, 
+                2
+            ]
+        }
+    }
+}

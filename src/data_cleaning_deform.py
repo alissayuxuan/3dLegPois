@@ -59,7 +59,10 @@ def project_selected_pois(poi_obj, surface, surface_pois):
 
     for i in range(len(proj_coords)):
          leg_id, poi_id = poi_keys[i]
+         print(f"POI before projection: {poi_obj.centroids}")
          poi_obj[leg_id, poi_id] = proj_coords_list[i]
+         print(f"Projected POI ({leg_id}, {poi_id}) to {proj_coords_list[i]}")
+         print(f"POI after projection: {poi_obj.centroids}")
 
     return poi_obj
 
@@ -136,7 +139,8 @@ def clean_surface_pois(master_df, base_save_dir):
         projected_poi = deepcopy(poi)
         print("projecting surface pois")
         projected_poi = project_selected_pois(projected_poi, surface, surface_pois)
-
+        print(f"projected_poi: {projected_poi.centroids}")
+        
         print("filter distant pois")
         bad_poi_list_surface = filter_distant_pois(poi, surface, surface_pois)
 
@@ -151,6 +155,7 @@ def clean_surface_pois(master_df, base_save_dir):
         proj_split_path = os.path.join(proj_path, "split.nii.gz")
         proj_cutout_slice_path = os.path.join(proj_path, "cutout_slice_indices.json")
 
+        
         outliers_path = os.path.join(base_save_dir, "cutouts-removed_not_on_surface", region, subject, str(leg))
         os.makedirs(outliers_path, exist_ok=True)
 
@@ -160,11 +165,11 @@ def clean_surface_pois(master_df, base_save_dir):
         outliers_subreg_path = os.path.join(outliers_path, "subreg.nii.gz")
         outliers_split_path = os.path.join(outliers_path, "split.nii.gz")
         outliers_cutout_slice_path = os.path.join(outliers_path, "cutout_slice_indices.json")
-
+        
 
         # Create 2 different cutout folders. Save the files to the new one
         projected_poi.save(proj_poi_path)
-        projected_poi.to_global().save(proj_poi_global_path)
+        projected_poi.to_global().save_mrk(proj_poi_global_path)
         ct.save(proj_ct_path)
         subreg.save(proj_subreg_path)
         splitseg.save(proj_split_path)
@@ -177,8 +182,9 @@ def clean_surface_pois(master_df, base_save_dir):
             "bad_poi_list": bad_poi_list
         })
 
+        
         poi.save(outliers_poi_path)
-        poi.to_global().save(outliers_poi_global_path)
+        poi.to_global().save_mrk(outliers_poi_global_path)
         ct.save(outliers_ct_path)
         subreg.save(outliers_subreg_path)
         splitseg.save(outliers_split_path)
@@ -193,24 +199,24 @@ def clean_surface_pois(master_df, base_save_dir):
             "file_dir": outliers_path,
             "bad_poi_list": updated_bad_poi_list
         })
-
+        
         if os.path.exists(cutout_slice_path):
             shutil.copy2(cutout_slice_path, proj_cutout_slice_path)
             shutil.copy2(cutout_slice_path, outliers_cutout_slice_path)
-
+        
     proj_master_df = pd.DataFrame(proj_entries)
     proj_region_folder = os.path.join(base_save_dir, "cutouts-proj_to_surface", region)
     os.makedirs(proj_region_folder, exist_ok=True)
     proj_master_df.to_csv(os.path.join(proj_region_folder, "master_df.csv"), index=False)
 
+    
     outliers_master_df = pd.DataFrame(outliers_entries)
     outliers_region_folder = os.path.join(base_save_dir, "cutouts-removed_not_on_surface", region)
     os.makedirs(outliers_region_folder, exist_ok=True)
     outliers_master_df.to_csv(os.path.join(outliers_region_folder, "master_df.csv"), index=False)
-
+    
 
 if __name__ == "__main__":
-    # TODO!!!
     master_df = pd.read_csv("dataset/data_preprocessing/cutout-folder/cutouts-folder-deform_more/fov_cut/lowerleg/master_df.csv")
     base_save_dir = "dataset/data_preprocessing/cutout-folder"
 

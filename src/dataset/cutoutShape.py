@@ -10,7 +10,7 @@ def find_max_shape():
     """
     finds the maximum shape of the subregs in the cutout folder.
     """
-    base_dir = 'data_preprocessing/cutout-folder/cutouts-folder-deform_more/fov_cut/patella' # change!
+    base_dir = 'data_preprocessing/cutout-folder/cutouts-removed_not_on_surface/femur' # change!
 
     max_shape = None
 
@@ -24,6 +24,8 @@ def find_max_shape():
                 continue
             subreg_path = os.path.join(sub_path, 'subreg.nii.gz')
             split_path = os.path.join(sub_path, 'split.nii.gz')
+            poi_path = os.path.join(sub_path, 'poi.json')   
+            poi_global_path = os.path.join(sub_path, 'poi_global.mrk.json')
             if os.path.isfile(subreg_path):
                 seg_mask = NII.load(subreg_path, seg=True) 
                 shape = seg_mask.shape  # tuple mit Dimensionen
@@ -33,6 +35,10 @@ def find_max_shape():
                 else:
                     # max_shape wird komponentenweise maximiert
                     max_shape = tuple(max(m, s) for m, s in zip(max_shape, shape))
+                
+                poi = POI.load(poi_path)
+                poi.to_global().save_mrk(poi_global_path)
+
             if os.path.isfile(split_path):
                 split_mask = NII.load(split_path, seg=True) 
                 split_shape = split_mask.shape  # tuple mit Dimensionen
